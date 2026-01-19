@@ -249,6 +249,12 @@ fn get_tiles(info:DungeonInfo, image:&DynamicImage) -> Vec<Tile> {
     tiles
 }
 
+#[derive(Debug)]
+enum RandomTarget {
+    City,
+    Unexplored,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Dungeon {
     state: DungeonState,
@@ -326,7 +332,7 @@ impl Dungeon {
         None
     }
 
-    fn get_random_tile_from_current(&self, avoid_position:Option<Coords>) -> Tile {
+    fn get_random_tile_from_current(&self, avoid_position:Option<Coords>, random_target:RandomTarget) -> Tile {
         let current = self.get_current_tile();
         let mut tiles = Vec::new();
         if current.north_passable {
@@ -362,6 +368,31 @@ impl Dungeon {
                     Some(*tile)
                 }
             }).collect::<Vec<_>>();
+        }
+        if tiles.len() > 1 {
+            match random_target {
+                RandomTarget::City => {
+                    if let Some(city_tile) = tiles.iter().find(|tile|tile.is_city) {
+                        tiles = vec![*city_tile];
+                    }
+                },
+                RandomTarget::Unexplored => {
+                    let unexplored_tiles = tiles.iter().filter_map(|tile|{
+                        if tile.north_passable && !self.get_tile(tile.position.x, tile.position.y - 1).explored
+                            || tile.south_passable && !self.get_tile(tile.position.x, tile.position.y + 1).explored
+                            || tile.east_passable && !self.get_tile(tile.position.x + 1, tile.position.y).explored
+                            || tile.west_passable && !self.get_tile(tile.position.x - 1, tile.position.y).explored {
+                            Some(*tile)
+                        }
+                        else {
+                            None
+                        }
+                    }).collect::<Vec<_>>();
+                    if !unexplored_tiles.is_empty() {
+                        tiles = unexplored_tiles;
+                    }
+                },
+            }
         }
         *tiles.choose(&mut rand::rng()).unwrap()
     }
@@ -602,18 +633,18 @@ pub fn determine_action(state:&State, old_position:Option<Coords>, explored_tile
                             else {
                                 println!("City tile {:?}", city_tile);
                                 println!("Found no path to city tile");
-                                let tile = dungeon.get_random_tile_from_current(None);
+                                let tile = dungeon.get_random_tile_from_current(None, RandomTarget::City);
                                 Action::ReturnToTown(false, tile.direction_from(dungeon.get_current_tile()))
                             }
                         }
                         else {
                             println!("Don't know where city tile is");
-                            let tile = dungeon.get_random_tile_from_current(None);
+                            let tile = dungeon.get_random_tile_from_current(None, RandomTarget::City);
                             Action::ReturnToTown(false, tile.direction_from(dungeon.get_current_tile()))
                         }
                     }
                     else {
-                        let tile = dungeon.get_random_tile_from_current(old_position);
+                        let tile = dungeon.get_random_tile_from_current(old_position, RandomTarget::Unexplored);
                         Action::FindFight(tile.direction_from(dungeon.get_current_tile()))
                     }
                 },
@@ -631,14 +662,14 @@ pub fn determine_action(state:&State, old_position:Option<Coords>, explored_tile
                             else {
                                 println!("City tile {:?}", city_tile);
                                 println!("Found no path to city tile");
-                                let tile = dungeon.get_random_tile_from_current(None);
+                                let tile = dungeon.get_random_tile_from_current(None, RandomTarget::City);
                                 Action::ReturnToTown(false, tile.direction_from(dungeon.get_current_tile()))
                             }
                         }
                         else {
                             println!("Don't know where city tile is");
                             println!("{:?}", dungeon.tiles);
-                            let tile = dungeon.get_random_tile_from_current(None);
+                            let tile = dungeon.get_random_tile_from_current(None, RandomTarget::City);
                             Action::ReturnToTown(false, tile.direction_from(dungeon.get_current_tile()))
                         }
                     }
