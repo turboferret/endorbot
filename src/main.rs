@@ -21,9 +21,6 @@ struct Opt {
 //  1080x2408
 fn main() {
     let opt = Opt::parse();
-    let i = std::time::Instant::now();
-    let img = screencap::screencap_framebuffer("RF8W101PHWF", &opt).unwrap();
-    println!("{}x{} {:?}", img.width(), img.height(), std::time::Instant::now().duration_since(i));
 
     let mut old_state = std::sync::Arc::new(parking_lot::Mutex::new(if let Ok(state) = std::fs::read_to_string("state") {
         serde_json::from_str(&state).unwrap_or(State::default())
