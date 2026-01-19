@@ -230,6 +230,7 @@ fn main() {
 
 fn run(opt:Opt, device:&str, ocr:&OcrEngine, old_state:State, last_action:Action) -> (State, Action) {
     let img = screencap::screencap(device, &opt).unwrap();
+    img.save_with_format("cap.png", image::ImageFormat::Png).unwrap();
     let old_position = old_state.get_position();
     let state = ml::get_state(ocr, old_state, img).unwrap();
     //println!("{:?}", state);
