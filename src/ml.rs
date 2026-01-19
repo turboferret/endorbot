@@ -626,11 +626,13 @@ pub fn determine_action(state:&State, old_position:Option<Coords>, explored_tile
                         }
                         else if let Some(city_tile) = dungeon.get_city_tile() {
                             if let Some(next_tile) = dungeon.get_next_tile_to_goal(dungeon.get_current_tile(), city_tile) {
+                                println!("This tile {:?}", dungeon.get_current_tile());
                                 println!("City tile {:?}", city_tile);
                                 println!("Next tile {:?}", next_tile);
                                 Action::ReturnToTown(false, next_tile.direction_from(dungeon.get_current_tile()))
                             }
                             else {
+                                println!("This tile {:?}", dungeon.get_current_tile());
                                 println!("City tile {:?}", city_tile);
                                 println!("Found no path to city tile");
                                 let tile = dungeon.get_random_tile_from_current(None, RandomTarget::City);
@@ -638,6 +640,7 @@ pub fn determine_action(state:&State, old_position:Option<Coords>, explored_tile
                             }
                         }
                         else {
+                            println!("This tile {:?}", dungeon.get_current_tile());
                             println!("Don't know where city tile is");
                             let tile = dungeon.get_random_tile_from_current(None, RandomTarget::City);
                             Action::ReturnToTown(false, tile.direction_from(dungeon.get_current_tile()))
@@ -655,11 +658,13 @@ pub fn determine_action(state:&State, old_position:Option<Coords>, explored_tile
                     if dungeon.has_low_character() || dungeon.has_dead_character() {
                         if let Some(city_tile) = dungeon.get_city_tile() {
                             if let Some(next_tile) = dungeon.get_next_tile_to_goal(dungeon.get_current_tile(), city_tile) {
+                                println!("This tile {:?}", dungeon.get_current_tile());
                                 println!("City tile {:?}", city_tile);
                                 println!("Next tile {:?}", next_tile);
                                 Action::ReturnToTown(false, next_tile.direction_from(dungeon.get_current_tile()))
                             }
                             else {
+                                println!("This tile {:?}", dungeon.get_current_tile());
                                 println!("City tile {:?}", city_tile);
                                 println!("Found no path to city tile");
                                 let tile = dungeon.get_random_tile_from_current(None, RandomTarget::City);
@@ -667,6 +672,7 @@ pub fn determine_action(state:&State, old_position:Option<Coords>, explored_tile
                             }
                         }
                         else {
+                            println!("This tile {:?}", dungeon.get_current_tile());
                             println!("Don't know where city tile is");
                             println!("{:?}", dungeon.tiles);
                             let tile = dungeon.get_random_tile_from_current(None, RandomTarget::City);
