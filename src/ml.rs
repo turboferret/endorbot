@@ -234,6 +234,12 @@ fn get_tiles(info:DungeonInfo, image:&DynamicImage) -> Vec<Tile> {
                 south_passable: !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4).into(), HEALTH_GREY),
                 west_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), HEALTH_GREY),
             };
+            if tile.is_city {
+                println!("City tile = {tile:?}");
+            }
+            if tile.position.x == 14 && tile.position.y == 15 {
+                println!("{tile:?} {}x{y} {:?}", TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y).into(), HEALTH_GREY));
+            }
             //println!("{x}x{y} {tile:?}");
 
             /*if 806 == x && 686 == y {
