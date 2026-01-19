@@ -93,3 +93,45 @@ pub fn screencap(device:&str, opt:&Opt) -> Result<DynamicImage, ScreencapError> 
     };
     Err(ScreencapError::Failed)
 }
+
+pub fn screencap_framebuffer(device:&str, opt:&Opt) -> Result<DynamicImage, ScreencapError> {
+    fn read_fb0_rgba(data:&Vec<u8>) -> Result<DynamicImage, ScreencapError> {
+        let width = 1080usize;
+        let height = 2408usize;
+        let stride_pixels = 1088usize;
+        let bpp = 4usize; // RGBA_8888
+        let stride_bytes = stride_pixels * bpp;
+        let row_bytes = width * bpp;
+        let expected = stride_bytes * height;
+
+        let mut pixels = Vec::with_capacity(row_bytes * height);
+        for y in 0..height {
+            let start = y * stride_bytes;
+            let end = start + row_bytes;
+            pixels.extend_from_slice(&data[start..end]);
+        }
+
+        match image::ImageBuffer::from_raw(width as u32, height as u32, pixels) {
+            Some(img) => Ok(image::DynamicImage::ImageRgba8(img)),
+            None => Err(ScreencapError::Failed),
+        }
+    }
+
+    if opt.local {
+        let output = std::fs::read("/dev/graphics/fb0")?;
+        return read_fb0_rgba(&output).map_err(|err|err.into())
+    }
+    else {
+        let t0 = std::time::Instant::now();
+        let output = Command::new("adb").arg("-s").arg(device).arg("exec-out").arg("su").arg("-c").arg("cat").arg("/dev/graphics/fb0")
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()?.wait_with_output()?;
+        if output.status.success() {
+            println!("{:?}", std::time::Instant::now().duration_since(t0));
+            return read_fb0_rgba(&output.stdout).map_err(|err|err.into())
+        }
+    };
+    Err(ScreencapError::Failed)
+}

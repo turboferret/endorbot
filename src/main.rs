@@ -21,6 +21,10 @@ struct Opt {
 //  1080x2408
 fn main() {
     let opt = Opt::parse();
+    let i = std::time::Instant::now();
+    let img = screencap::screencap_framebuffer("RF8W101PHWF", &opt).unwrap();
+    println!("{}x{} {:?}", img.width(), img.height(), std::time::Instant::now().duration_since(i));
+
     let mut old_state = std::sync::Arc::new(parking_lot::Mutex::new(if let Ok(state) = std::fs::read_to_string("state") {
         serde_json::from_str(&state).unwrap_or(State::default())
     }
@@ -179,12 +183,14 @@ fn main() {
 
     let main_state = old_state.clone();
     let ocr = ml::create_ocr_engine();
+    let mut last_action = Action::CloseAd;
     loop {
         let snapshot = {
             let mut guard = main_state.lock();
             guard.clone()
         };
-        let (state, action) = run(opt, "RF8W101PHWF", &ocr, snapshot);
+        let (state, action) = run(opt, "RF8W101PHWF", &ocr, snapshot, last_action);
+        last_action = action;
         match action {
             Action::CloseAd => {
 
@@ -195,7 +201,7 @@ fn main() {
             Action::GotoDungeon => {
 
             },
-            Action::FindFight(_move_direction) => {
+            Action::FindFight(_move_direction, _target_tile) => {
             },
             Action::Fight => {
                 std::thread::sleep(std::time::Duration::from_millis(200));
@@ -225,12 +231,12 @@ fn main() {
     
 }
 
-fn run(opt:Opt, device:&str, ocr:&OcrEngine, old_state:State) -> (State, Action) {
+fn run(opt:Opt, device:&str, ocr:&OcrEngine, old_state:State, last_action:Action) -> (State, Action) {
     let img = screencap::screencap(device, &opt).unwrap();
     let old_position = old_state.get_position();
     let state = ml::get_state(ocr, old_state, img).unwrap();
     //println!("{:?}", state);
-    let action = ml::determine_action(&state, old_position);
+    let action = ml::determine_action(&state, last_action, old_position);
     println!("{:?}", action);
     if !opt.no_action {
         ml::run_action(device, opt, &state, &action);

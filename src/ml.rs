@@ -2,7 +2,7 @@ use std::{collections::{HashMap, HashSet}, process::{Command, Stdio}};
 
 use image::{DynamicImage, EncodableLayout, GenericImage, GenericImageView, Rgba};
 use ocrs::{ImageSource, OcrEngine, OcrEngineParams};
-use rand::{seq::IndexedRandom, thread_rng};
+use rand::{seq::{IndexedRandom, IteratorRandom}, thread_rng};
 use rten::Model;
 use serde::{Deserialize, Serialize};
 
@@ -181,7 +181,7 @@ const TILE_START:(u32, u32) = (536, 536);
 const TILE_COUNT:(u32, u32) = (7, 7);
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-struct Tile {
+pub struct Tile {
     explored: bool,
     trap: bool,
     is_city: bool,
@@ -456,6 +456,37 @@ impl Dungeon {
             None
         }
     }
+    
+    fn get_unexplored_tile(&self, old_position: Option<Coords>) -> Tile {
+        if let Some(tile) = self.tiles.iter().filter(|tile|self.has_unexplored_neighbour(tile)).choose(&mut rand::rng()) {
+            return *tile;
+        }
+        self.get_random_tile_from_current(old_position, RandomTarget::Unexplored)
+    }
+    
+    fn has_unexplored_neighbour(&self, tile: &Tile) -> bool {
+        if tile.north_passable {
+            if !self.get_tile(tile.position.x, tile.position.y - 1).explored {
+                return true;
+            }
+        }
+        if tile.south_passable {
+            if !self.get_tile(tile.position.x, tile.position.y + 1).explored {
+                return true;
+            }
+        }
+        if tile.east_passable {
+            if !self.get_tile(tile.position.x + 1, tile.position.y).explored {
+                return true;
+            }
+        }
+        if tile.west_passable {
+            if !self.get_tile(tile.position.x - 1, tile.position.y).explored {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -584,20 +615,20 @@ pub fn get_state(ocr:&OcrEngine, old_state:State, image:DynamicImage) -> Result<
     Err(StateError::UnknownState)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum MoveDirection {
     North,
     East,
     South,
     West,
 }
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Action {
     CloseAd, 
     GotoTown,
     GotoDungeon,
 
-    FindFight(MoveDirection),
+    FindFight(MoveDirection, Tile),
     Fight,
     OpenChest,
 
@@ -605,7 +636,7 @@ pub enum Action {
     Resurrect,
 }
 
-pub fn determine_action(state:&State, old_position:Option<Coords>) -> Action {
+pub fn determine_action(state:&State, last_action:Action, old_position:Option<Coords>) -> Action {
     match state.state_type {
         StateType::Ad => {
             Action::CloseAd
@@ -652,8 +683,18 @@ pub fn determine_action(state:&State, old_position:Option<Coords>) -> Action {
                         }
                     }
                     else {
-                        let tile = dungeon.get_random_tile_from_current(old_position, RandomTarget::Unexplored);
-                        Action::FindFight(tile.direction_from(dungeon.get_current_tile()))
+                        let tile = if let Action::FindFight(_move_direction, target_tile) = last_action {
+                            target_tile
+                        }
+                        else {
+                            dungeon.get_unexplored_tile(old_position)
+                        };
+                        if let Some(next_tile) = dungeon.get_next_tile_to_goal(dungeon.get_current_tile(), tile) {
+                            Action::FindFight(next_tile.direction_from(dungeon.get_current_tile()), tile)
+                        }
+                        else {
+                            panic!("Found no path to {:?}", tile);
+                        }
                     }
                 },
                 DungeonState::IdleChest => {
@@ -704,7 +745,7 @@ pub fn run_action(device:&str, opt:Opt, _state:&State, action:&Action) -> Option
         Action::GotoDungeon => {
             adb_tap(device, opt, 890, 1928);
         },
-        Action::FindFight(move_direction) => {
+        Action::FindFight(move_direction, _target_tile) => {
             adb_move(device, opt, move_direction);
         },
         Action::Fight => {
