@@ -74,6 +74,7 @@ fn main() {
         if opt.step {
             break;
         }
+        std::thread::sleep(std::time::Duration::from_millis(200));
     }
     //run("RF8W101PHWF", &ocr, &mut explored_tiles);
 
