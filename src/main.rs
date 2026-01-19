@@ -36,7 +36,7 @@ fn main() {
     let mut explored_tiles = HashMap::new();
 
     let mut old_state = if let Ok(state) = std::fs::read_to_string("state") {
-        serde_json::from_str(&state).unwrap()
+        serde_json::from_str(&state).unwrap_or(State::default())
     }
     else {
         State::default()
