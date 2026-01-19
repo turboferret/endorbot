@@ -6,6 +6,8 @@ use rand::{seq::IndexedRandom, thread_rng};
 use rten::Model;
 use serde::{Deserialize, Serialize};
 
+use crate::Opt;
+
 pub fn create_ocr_engine() -> OcrEngine {
     let recognition_model = Model::load_file("ocr/text-recognition.rten").expect("load_file");
     let detection_model = Model::load_file("ocr/text-detection.rten").expect("load_file");
@@ -649,32 +651,32 @@ pub fn determine_action(state:&State, old_position:Option<Coords>, explored_tile
     }
 }
 
-pub fn run_action(device:&str, state:&State, action:&Action) -> Option<Coords> {
+pub fn run_action(device:&str, opt:&Opt, state:&State, action:&Action) -> Option<Coords> {
     match action {
         Action::CloseAd => {
-            adb_tap(device, 935, 153);
+            adb_tap(device, opt, 935, 153);
         },
         Action::GotoTown => {
 
         },
         Action::GotoDungeon => {
-            adb_tap(device, 890, 1928);
+            adb_tap(device, opt, 890, 1928);
         },
         Action::FindFight(move_direction) => {
-            adb_move(device, move_direction);
+            adb_move(device, opt, move_direction);
         },
         Action::Fight => {
-            adb_tap(device, 711, 1308);
+            adb_tap(device, opt, 711, 1308);
         },
         Action::OpenChest => {
-            adb_tap(device, 798, 1312);
+            adb_tap(device, opt, 798, 1312);
         },
         Action::ReturnToTown(on_city_tile, move_direction) => {
             if *on_city_tile {
-                adb_tap(device, 715, 1316);
+                adb_tap(device, opt, 715, 1316);
             }
             else {
-                adb_move(device, move_direction);
+                adb_move(device, opt, move_direction);
             }
         },
         Action::Resurrect => {
@@ -684,27 +686,45 @@ pub fn run_action(device:&str, state:&State, action:&Action) -> Option<Coords> {
     None
 }
 
-fn adb_move(device:&str, move_direction:&MoveDirection) {
+fn adb_move(device:&str, opt:&Opt, move_direction:&MoveDirection) {
     match move_direction {
-        MoveDirection::North => adb_tap(device, 774, 2085),
-        MoveDirection::East => adb_tap(device, 953, 2277),
-        MoveDirection::South => adb_tap(device, 774, 2264),
-        MoveDirection::West => adb_tap(device, 575, 2277),
+        MoveDirection::North => adb_tap(device, opt, 774, 2085),
+        MoveDirection::East => adb_tap(device, opt, 953, 2277),
+        MoveDirection::South => adb_tap(device, opt, 774, 2264),
+        MoveDirection::West => adb_tap(device, opt, 575, 2277),
     }
 }
 
-fn adb_input(device:&str, key:&str) {
-    let cmd = Command::new("adb").arg("-s").arg(device).arg("shell").arg("input").arg("keyevent").arg(key)
-    .stdin(Stdio::null())
-    .stderr(Stdio::null())
-    .stdout(Stdio::null())
-    .spawn().unwrap().wait().unwrap();
+fn adb_input(device:&str, opt:&Opt, key:&str) {
+    let _ = if opt.local {
+        Command::new("input").arg("keyevent").arg(key)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .stdout(Stdio::null())
+        .spawn().unwrap().wait().unwrap();
+    }
+    else {
+        Command::new("adb").arg("-s").arg(device).arg("shell").arg("input").arg("keyevent").arg(key)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .stdout(Stdio::null())
+        .spawn().unwrap().wait().unwrap();
+    };
 }
 
-fn adb_tap(device:&str, x:u32, y:u32) {
-    let cmd = Command::new("adb").arg("-s").arg(device).arg("shell").arg("input").arg("tap").arg(x.to_string()).arg(y.to_string())
-    .stdin(Stdio::null())
-    .stderr(Stdio::null())
-    .stdout(Stdio::null())
-    .spawn().unwrap().wait().unwrap();
+fn adb_tap(device:&str, opt:&Opt, x:u32, y:u32) {
+    let _ = if opt.local {
+        Command::new("input").arg("tap").arg(x.to_string()).arg(y.to_string())
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .stdout(Stdio::null())
+        .spawn().unwrap().wait().unwrap();
+    }
+    else {
+        Command::new("adb").arg("-s").arg(device).arg("shell").arg("input").arg("tap").arg(x.to_string()).arg(y.to_string())
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .stdout(Stdio::null())
+        .spawn().unwrap().wait().unwrap();
+    };
 }

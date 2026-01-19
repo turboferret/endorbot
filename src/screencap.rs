@@ -2,6 +2,8 @@ use std::{fs::File, io::{BufReader, Read, Write}, path::PathBuf, process::{Comma
 
 use image::{DynamicImage, ImageError, RgbaImage};
 
+use crate::Opt;
+
 #[derive(Debug)]
 pub enum LoadBitmapError {
     ImageError(ImageError),
@@ -68,17 +70,26 @@ impl From<LoadBitmapError> for ScreencapError {
     }
 }
 
-pub fn screencap(device:&str) -> Result<DynamicImage, ScreencapError> {
-    let cmd = Command::new("adb").arg("-s").arg(device).arg("exec-out").arg("screencap")
-    .stdin(Stdio::null())
-    .stderr(Stdio::null())
-    .stdout(Stdio::piped())
-    .spawn()?;
-    let output = cmd.wait_with_output()?;
-    if output.status.success() {
-        load_bitmap(&output.stdout).map_err(|err|err.into())
+pub fn screencap(device:&str, opt:&Opt) -> Result<DynamicImage, ScreencapError> {
+    if opt.local {
+        let output = Command::new("screencap")
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()?.wait_with_output()?;
+        if output.status.success() {
+            return load_bitmap(&output.stdout).map_err(|err|err.into())
+        }
     }
     else {
-        Err(ScreencapError::Failed)
-    }
+        let output = Command::new("adb").arg("-s").arg(device).arg("exec-out").arg("screencap")
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()?.wait_with_output()?;
+        if output.status.success() {
+            return load_bitmap(&output.stdout).map_err(|err|err.into())
+        }
+    };
+    Err(ScreencapError::Failed)
 }

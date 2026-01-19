@@ -14,6 +14,8 @@ struct Opt {
     step: bool,
     #[clap(long, action, default_value_t = false)]
     no_action: bool,
+    #[clap(long, action, default_value_t = false)]
+    local: bool,
 }
 //  1080x2408
 
@@ -79,14 +81,14 @@ fn main() {
 }
 
 fn run(opt:&Opt, device:&str, ocr:&OcrEngine, mut old_state:State, mut explored_tiles:&mut HashMap<String, HashSet<(u32, u32)>>) -> (State, Action) {
-    let img = screencap::screencap(device).unwrap();
+    let img = screencap::screencap(device, &opt).unwrap();
     let old_position = old_state.get_position();
     let state = ml::get_state(ocr, old_state, img, explored_tiles).unwrap();
     //println!("{:?}", state);
     let action = ml::determine_action(&state, old_position, explored_tiles);
     println!("{:?}", action);
     if !opt.no_action {
-        ml::run_action(device, &state, &action);
+        ml::run_action(device, opt, &state, &action);
     }
     (state, action)
 }
