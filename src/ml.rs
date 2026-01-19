@@ -79,8 +79,8 @@ impl Into<State> for (StateType, Dungeon) {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct State {
-    state_type: StateType,
-    dungeon: Dungeon,
+    pub state_type: StateType,
+    pub dungeon: Dungeon,
 }
 impl Default for State {
     fn default() -> Self {
@@ -134,7 +134,7 @@ impl Default for Character {
     }
 }
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-struct Enemy {
+pub struct Enemy {
     health: Health,
 }
 
@@ -251,12 +251,12 @@ fn get_tiles(info:DungeonInfo, image:&DynamicImage) -> Vec<Tile> {
             if tile.is_city {
                 println!("City tile = {tile:?}");
             }
-            if tile.position.x == 16 && tile.position.y == 15 {
+            /*if tile.position.x == 16 && tile.position.y == 15 {
                 if tile.west_passable {
                     println!("{tile:?} {}x{y} {:?} {x}x{y} {:?}", TILE_START.0 + x_count * TILE_SIZE.0 + 1, image.get_pixel(TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y), image.get_pixel(x, y));
                     panic!();
                 }
-            }
+            }*/
             //println!("{x}x{y} {tile:?}");
 
             /*if 806 == x && 686 == y {
@@ -298,31 +298,15 @@ impl Dungeon {
         self.characters.iter().any(|v|v.health == Health::Dead)
     }
 
-    pub fn new(ocr:&OcrEngine, state:DungeonState, image:&DynamicImage, mut explored_tiles:&mut HashMap<String, HashSet<(u32, u32)>>, old_position:Option<Coords>) -> Self {
+    pub fn new(ocr:&OcrEngine, state:DungeonState, image:&DynamicImage, old_position:Option<Coords>) -> Self {
         let info = get_info(ocr, image, old_position);
-        let mut state = Self {
+        let state = Self {
             state,
             characters: get_characters(image),
             info: info.clone(),
             tiles: get_tiles(info, image),
         };
-        state.update_explored_tiles(&mut explored_tiles);
         state
-    }
-    
-    fn update_explored_tiles(&mut self, mut explored_tiles:&mut HashMap<String, HashSet<(u32, u32)>>) {
-        if let Some(coords) = self.info.coordinates {
-            match explored_tiles.entry(self.info.floor.clone()) {
-                std::collections::hash_map::Entry::Occupied(mut occupied_entry) => {
-                    occupied_entry.get_mut().insert((coords.x, coords.y));
-                },
-                std::collections::hash_map::Entry::Vacant(vacant_entry) => {
-                    let mut set = HashSet::new();
-                    set.insert((coords.x, coords.y));
-                    vacant_entry.insert(set);
-                },
-            }
-        }
     }
 
     fn get_current_tile(&self) -> Tile {
@@ -492,10 +476,8 @@ const HEALTH_GREEN:image::Rgba<u8> = image::Rgba([56, 142, 60, 255]);
 const HEALTH_ORANGE:image::Rgba<u8> = image::Rgba([245, 124, 0, 255]);
 
 const IDLE_1:image::Rgba<u8> = image::Rgba([202, 196, 208, 255]);
-const IDLE_2:image::Rgba<u8> = image::Rgba([24, 30, 49, 255]);
 
 const TILE_UNEXPLORED:image::Rgba<u8> = image::Rgba([29, 27, 32, 255]);
-const BLACK:image::Rgba<u8> = image::Rgba([0, 0, 0, 255]);
 
 fn get_characters(image:&DynamicImage) -> [Character; 4] {
     std::array::from_fn(|i|{
@@ -577,21 +559,21 @@ fn pixel_either_color(image: &DynamicImage, coords:Coords, colors: impl Iterator
     colors.into_iter().any(|v|v == color)
 }
 
-pub fn get_state(ocr:&OcrEngine, old_state:State, image:DynamicImage, mut explored_tiles:&mut HashMap<String, HashSet<(u32, u32)>>) -> Result<State, StateError> {
+pub fn get_state(ocr:&OcrEngine, old_state:State, image:DynamicImage) -> Result<State, StateError> {
     if pixels_same_color(&image, [(918, 138).into(), (949, 138).into(), (919, 168).into(), (949, 168).into()].into_iter(), image::Rgba([202, 196, 208, 255])) {
         return Ok(Into::<State>::into(StateType::Ad).merge(old_state));
     }
     if pixel_color(&image, (466, 1116).into(), image::Rgba([185, 207, 220, 255])) && pixels_same_color(&image, [(690, 1306).into(), (717, 1326).into()].into_iter(), image::Rgba([56, 30, 114, 255])) {
-        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(ocr, DungeonState::IdleChest, &image, explored_tiles, old_state.get_position()))).merge(old_state));
+        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(ocr, DungeonState::IdleChest, &image, old_state.get_position()))).merge(old_state));
     }
     if (pixel_either_color(&image, (827, 1306).into(), [FIGHT, image::Rgba([192, 172, 241, 255])].into_iter()) ||
         pixel_either_color(&image, (827, 1260).into(), [FIGHT, image::Rgba([192, 172, 241, 255])].into_iter())) &&
         !pixel_color(&image, (671, 1309).into(), image::Rgba([56, 30, 114, 255])) {
-        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(ocr, DungeonState::Fight(get_enemy(&image)), &image, explored_tiles, old_state.get_position()))).merge(old_state));
+        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(ocr, DungeonState::Fight(get_enemy(&image)), &image, old_state.get_position()))).merge(old_state));
     }
     if pixel_color(&image, (979, 1083).into(), IDLE_1) && pixel_color(&image, (1023, 1116).into(), IDLE_1) {
         let on_city_tile = pixel_color(&image, (716, 1279).into(), FIGHT);
-        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(ocr, DungeonState::Idle(on_city_tile), &image, explored_tiles, old_state.get_position()))).merge(old_state));
+        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(ocr, DungeonState::Idle(on_city_tile), &image, old_state.get_position()))).merge(old_state));
     }
     if pixels_color(&image, [(752, 1926, CITY_1).into(), (75, 1512, CITY_2).into()].into_iter()) {
         return Ok(Into::<State>::into(StateType::City(has_dead_characters(ocr, &image))).merge(old_state));
@@ -623,7 +605,7 @@ pub enum Action {
     Resurrect,
 }
 
-pub fn determine_action(state:&State, old_position:Option<Coords>, explored_tiles:&HashMap<String, HashSet<(u32, u32)>>) -> Action {
+pub fn determine_action(state:&State, old_position:Option<Coords>) -> Action {
     match state.state_type {
         StateType::Ad => {
             Action::CloseAd
@@ -711,7 +693,7 @@ pub fn determine_action(state:&State, old_position:Option<Coords>, explored_tile
     }
 }
 
-pub fn run_action(device:&str, opt:&Opt, state:&State, action:&Action) -> Option<Coords> {
+pub fn run_action(device:&str, opt:Opt, _state:&State, action:&Action) -> Option<Coords> {
     match action {
         Action::CloseAd => {
             adb_tap(device, opt, 935, 153);
@@ -746,7 +728,7 @@ pub fn run_action(device:&str, opt:&Opt, state:&State, action:&Action) -> Option
     None
 }
 
-fn adb_move(device:&str, opt:&Opt, move_direction:&MoveDirection) {
+fn adb_move(device:&str, opt:Opt, move_direction:&MoveDirection) {
     match move_direction {
         MoveDirection::North => adb_tap(device, opt, 774, 2085),
         MoveDirection::East => adb_tap(device, opt, 953, 2277),
@@ -755,7 +737,7 @@ fn adb_move(device:&str, opt:&Opt, move_direction:&MoveDirection) {
     }
 }
 
-fn adb_input(device:&str, opt:&Opt, key:&str) {
+/*fn adb_input(device:&str, opt:&Opt, key:&str) {
     let _ = if opt.local {
         Command::new("input").arg("keyevent").arg(key)
         .stdin(Stdio::null())
@@ -770,9 +752,9 @@ fn adb_input(device:&str, opt:&Opt, key:&str) {
         .stdout(Stdio::null())
         .spawn().unwrap().wait().unwrap();
     };
-}
+}*/
 
-fn adb_tap(device:&str, opt:&Opt, x:u32, y:u32) {
+fn adb_tap(device:&str, opt:Opt, x:u32, y:u32) {
     let _ = if opt.local {
         Command::new("input").arg("tap").arg(x.to_string()).arg(y.to_string())
         .stdin(Stdio::null())

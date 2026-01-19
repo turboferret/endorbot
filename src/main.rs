@@ -1,14 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, convert::Infallible, sync::Arc};
 
-use clap::{ArgAction, Parser};
+use astra::{Body, Request, ResponseBuilder};
+use clap::Parser;
 use ocrs::OcrEngine;
 
-use crate::ml::{Action, Coords, State};
+use crate::ml::{Action, State};
 
 mod screencap;
 mod ml;
 
-#[derive(Parser)]
+#[derive(Parser, Copy, Clone)]
 struct Opt {
     #[clap(long, action, default_value_t = false)]
     step: bool,
@@ -18,32 +19,172 @@ struct Opt {
     local: bool,
 }
 //  1080x2408
-
 fn main() {
     let opt = Opt::parse();
-    /*for file in ["caps/main.png", "caps/city.png", "caps/dungeon.png", "caps/fight.png", "caps/enemy-low.png", "caps/char1-low.png", "caps/char4-low.png", "caps/enemy-hurt.png"] {
-        println!("{file}");
-        let img = screencap::load_png_from_file(file.into()).unwrap();
-        println!("\t{:?}", ml::get_state(img));
-    }*/
-
-    //let img = screencap::screencap("RF8W101PHWF").unwrap();
-    //img.save_with_format("out.bmp", image::ImageFormat::Bmp).unwrap();
-    //println!("\t{:?}", ml::get_state(img));
-
-    let ocr = ml::create_ocr_engine();
-
-    let mut explored_tiles = HashMap::new();
-
-    let mut old_state = if let Ok(state) = std::fs::read_to_string("state") {
+    let mut old_state = std::sync::Arc::new(parking_lot::Mutex::new(if let Ok(state) = std::fs::read_to_string("state") {
         serde_json::from_str(&state).unwrap_or(State::default())
     }
     else {
         State::default()
-    };
+    }));
 
+    let http_state = old_state.clone();
+
+    std::thread::spawn(move|| {
+        astra::Server::bind("0.0.0.0:8080").serve(move|req:Request,info| {
+            if req.uri().path() == "/data" {
+                let j = {
+                    let guard = http_state.try_lock_for(std::time::Duration::from_millis(5000)).unwrap();
+                    serde_json::to_string(&*guard).unwrap()
+                };
+                ResponseBuilder::new()
+                .header("Content-Type", "application/json")
+                .body(Body::new(j))
+                .unwrap()
+            }
+            else {
+                ResponseBuilder::new()
+                .header("Content-Type", "text/html")
+                .body(Body::new(r#"
+                <!DOCTYPE html>
+                <html>
+                <head>
+                <title>Endorbot</title>
+                <style>
+                #map {
+                    display: flex;
+                    flex-direction: column;
+                }
+                .row {
+                    display: flex;
+                }
+                .tile {
+                    position: relative;
+                    width: 16px;
+                    height: 16px;
+                    border: 1px solid #f1f1f1;
+                }
+                .tile[explored] {
+                    background-color: #bfbfbf;
+                    border: 1px solid #000;
+                }
+                .tile[north-passable] {
+                    border-top: 1px solid transparent;
+                }
+                .tile[south-passable] {
+                    border-bottom: 1px solid transparent;
+                }
+                .tile[east-passable] {
+                    border-right: 1px solid transparent;
+                }
+                .tile[west-passable] {
+                    border-left: 1px solid transparent;
+                }
+                .tile[current]:after {
+                    content: 'x';
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 100%;
+                    height: 100%;
+                    text-align: center;
+                    font-size: 0.8em;
+                }
+                </style>
+                <script>
+                var map_size = {x: 0, y: 0};
+                var map_rows = [];
+
+                function update_map(map, state) {
+                    var dungeon = state.dungeon;
+                    var current_tile = document.querySelector('.tile[current]');
+                    for(const tile of dungeon.tiles) {
+                        if(tile.position.y >= map_size.y) {
+                            for(var y = map_size.y; y <= tile.position.y; ++y) {
+                                var row = document.createElement('div');
+                                row.className = 'row';
+                                var cols = [];
+                                for(var x = 0; x < map_size.x; ++x) {
+                                    var col = document.createElement('div');
+                                    col.className = 'tile';
+                                    row.appendChild(col);
+                                    cols.push(col);
+                                }
+                                map.appendChild(row);
+                                map_rows.push(cols);
+                            }
+                            map_size.y = tile.position.y + 1;
+                        }
+                        if(tile.position.x >= map_size.x) {
+                            for(var y = 0; y < map_size.y; ++y) {
+                                for(var x = map_size.x; x <= tile.position.x; ++x) {
+                                    var col = document.createElement('div');
+                                    col.className = 'tile';
+                                    map.children[y].appendChild(col);
+                                    map_rows[y].push(col);
+                                }
+                            }
+                            map_size.x = tile.position.x + 1;
+                        }
+                        var e = map_rows[tile.position.y][tile.position.x];
+                        if(tile.north_passable)
+                            e.setAttribute('north-passable', '');
+                        if(tile.south_passable)
+                            e.setAttribute('south-passable', '');
+                        if(tile.east_passable)
+                            e.setAttribute('east-passable', '');
+                        if(tile.west_passable)
+                            e.setAttribute('west-passable', '');
+                        e.setAttribute('explored', '');
+                        if(tile.position.x == dungeon.info.coordinates.x && tile.position.y == dungeon.info.coordinates.y) {
+                            if(current_tile)
+                                current_tile.removeAttribute('current');
+                            e.setAttribute('current', '');
+                        }
+                    }
+                    setTimeout(refresh_data, 1000);
+                }
+
+                function refresh_data() {
+                    var request = new XMLHttpRequest();
+                    request.open("GET", "/data");
+                    request.onreadystatechange = function () {
+                        if (this.readyState == 4) {
+                            if(this.status == 200) {
+                                var map = document.getElementById('map');
+                                update_map(map, JSON.parse(this.responseText));
+                                //console.log(this.responseText);
+                                //document.getElementById("container")
+                                //.innerHTML = this.responseText;
+                            }
+                            else
+                                console.info(this.status);
+                        }
+                    }
+                    request.send();
+                }
+
+                refresh_data();
+                </script>
+                </head>
+                <body>
+                    <div id="map"></div>
+                </body>
+                </html>
+                "#))
+                .unwrap()
+            }
+        }).unwrap();
+    });
+
+    let main_state = old_state.clone();
+    let ocr = ml::create_ocr_engine();
     loop {
-        let (state, action) = run(&opt, "RF8W101PHWF", &ocr, old_state, &mut explored_tiles);
+        let snapshot = {
+            let mut guard = main_state.lock();
+            guard.clone()
+        };
+        let (state, action) = run(opt, "RF8W101PHWF", &ocr, snapshot);
         match action {
             Action::CloseAd => {
 
@@ -54,39 +195,42 @@ fn main() {
             Action::GotoDungeon => {
 
             },
-            Action::FindFight(move_direction) => {
+            Action::FindFight(_move_direction) => {
             },
             Action::Fight => {
-              //  break;
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            //  break;
             },
             Action::OpenChest => {
 
             },
-            Action::ReturnToTown(on_city_tile, move_direction) => {
+            Action::ReturnToTown(_on_city_tile, _move_direction) => {
             },
             Action::Resurrect => {
                 println!("Need manual resurrection");
                 break;
             },
         }
-        old_state = state;
-        std::fs::write("state", serde_json::to_string(&old_state).unwrap()).unwrap();
+        let snapshot = {
+            let mut guard = main_state.lock();
+            *guard = state;
+            guard.clone()
+        };
+        std::fs::write("state", serde_json::to_string(&snapshot).unwrap()).unwrap();
         if opt.step {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
-    //run("RF8W101PHWF", &ocr, &mut explored_tiles);
-
-    //println!("{:?}", explored_tiles);
+    
 }
 
-fn run(opt:&Opt, device:&str, ocr:&OcrEngine, mut old_state:State, mut explored_tiles:&mut HashMap<String, HashSet<(u32, u32)>>) -> (State, Action) {
+fn run(opt:Opt, device:&str, ocr:&OcrEngine, old_state:State) -> (State, Action) {
     let img = screencap::screencap(device, &opt).unwrap();
     let old_position = old_state.get_position();
-    let state = ml::get_state(ocr, old_state, img, explored_tiles).unwrap();
+    let state = ml::get_state(ocr, old_state, img).unwrap();
     //println!("{:?}", state);
-    let action = ml::determine_action(&state, old_position, explored_tiles);
+    let action = ml::determine_action(&state, old_position);
     println!("{:?}", action);
     if !opt.no_action {
         ml::run_action(device, opt, &state, &action);
