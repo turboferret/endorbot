@@ -94,11 +94,20 @@ impl State {
     }
 
     pub fn merge(&mut self, old:State) -> State {
-        for tile in old.dungeon.tiles {
+        let city_tile = self.dungeon.tiles.iter().find(|tile|tile.is_city).cloned();
+        for mut tile in old.dungeon.tiles {
             if let Some(new_tile) = self.dungeon.tiles.iter_mut().find(|v|v.position == tile.position) {
-                new_tile.is_city = tile.is_city || new_tile.is_city;
+                if city_tile.is_none() {
+                    new_tile.is_city = tile.is_city || new_tile.is_city;
+                }
             }
             else {
+                tile.is_city = if city_tile.is_none() {
+                    tile.is_city 
+                }
+                else {
+                    false
+                };
                 self.dungeon.tiles.push(tile);
             }
         }
@@ -234,11 +243,19 @@ fn get_tiles(info:DungeonInfo, image:&DynamicImage) -> Vec<Tile> {
                 south_passable: !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4).into(), HEALTH_GREY),
                 west_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), HEALTH_GREY),
             };
+
+            if pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), TILE_UNEXPLORED) && !pixel_color(image, (x, y).into(), TILE_UNEXPLORED) {
+                continue;
+            }
+            
             if tile.is_city {
                 println!("City tile = {tile:?}");
             }
-            if tile.position.x == 14 && tile.position.y == 15 {
-                println!("{tile:?} {}x{y} {:?}", TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y).into(), HEALTH_GREY));
+            if tile.position.x == 16 && tile.position.y == 15 {
+                if tile.west_passable {
+                    println!("{tile:?} {}x{y} {:?} {x}x{y} {:?}", TILE_START.0 + x_count * TILE_SIZE.0 + 1, image.get_pixel(TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y), image.get_pixel(x, y));
+                    panic!();
+                }
             }
             //println!("{x}x{y} {tile:?}");
 
