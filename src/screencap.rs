@@ -80,9 +80,10 @@ pub fn screencap_bitmap(device:&str, opt:&Opt) -> Option<Bitmap> {
         }
         if !opt.no_ocr {
             let ocr = ml::create_ocr_engine();
-            bitmap.set_has_dead_characters(ml::has_dead_characters(&ocr, &image));
+           // bitmap.set_has_dead_characters(ml::has_dead_characters(&ocr, &image));
             bitmap.set_info(get_info(&ocr, &image, None));
         }
+        bitmap.set_has_dead_characters(ml::get_characters(&bitmap).iter().find(|char|char.is_dead()).is_some());
         if opt.debug {
             println!("{:?}", bitmap.get_has_dead_characters());
             println!("{:?}", bitmap.get_info());

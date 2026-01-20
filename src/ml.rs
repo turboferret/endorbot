@@ -162,12 +162,22 @@ enum Health {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct Character {
+pub struct Character {
     health: Health,
 }
 impl Default for Character {
     fn default() -> Self {
         Self { health: Health::Unknown }
+    }
+}
+impl Character {
+    pub fn is_dead(&self) -> bool {
+        if let Health::Dead = self.health {
+            true
+        }
+        else {
+            false
+        }
     }
 }
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -552,7 +562,7 @@ const IDLE_1:image::Rgb<u8> = image::Rgb([202, 196, 208]);
 
 const TILE_UNEXPLORED:image::Rgb<u8> = image::Rgb([29, 27, 32]);
 
-fn get_characters(image:&Bitmap) -> [Character; 4] {
+pub fn get_characters(image:&Bitmap) -> [Character; 4] {
     std::array::from_fn(|i|{
         let y = 560 + i as u32 * 120;
         let health = if pixel_color(image, (514, y).into(), HEALTH_GREEN) {
