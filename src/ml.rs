@@ -757,7 +757,9 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
                             Action::FindFight(next_tile.direction_from(dungeon.get_current_tile()), tile)
                         }
                         else {
-                            panic!("Found no path to {:?}", tile);
+                            println!("Found no path to {:?}", tile);
+                            let tile = dungeon.get_random_tile_from_current(None, RandomTarget::Unexplored);
+                            Action::FindFight(tile.direction_from(dungeon.get_current_tile()), tile)
                         }
                     }
                 },
