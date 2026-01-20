@@ -1,6 +1,6 @@
 use std::{collections::{HashMap, HashSet}, io::Write, process::{Command, Stdio}};
 
-use image::{DynamicImage, EncodableLayout, GenericImage, GenericImageView, Rgba};
+use image::{DynamicImage, EncodableLayout, GenericImage, GenericImageView, Rgb, Rgba};
 use ocrs::{ImageSource, OcrEngine, OcrEngineParams};
 use rand::{seq::{IndexedRandom, IteratorRandom}, thread_rng};
 use rten::Model;
@@ -11,17 +11,24 @@ use crate::Opt;
 #[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, PartialEq)]
 pub struct Bitmap {
     pixels: Vec<(u16, u16, [u8;3])>,
+    has_dead_characters: bool,
+    info: DungeonInfo,
 }
 impl Bitmap {
-    pub fn get_pixel(&self, x:u16, y:u16) -> Option<&[u8; 3]> {
-        self.pixels.iter().find_map(|(px, py, color)|if (x, y) == (*px, *py){Some(color)}else{None})
+    pub fn get_pixel(&self, x:u16, y:u16) -> &[u8; 3] {
+        self.pixels.iter().find_map(|(px, py, color)|if (x, y) == (*px, *py){Some(color)}else{None}).unwrap()
     }
     pub fn set_pixel(&mut self, x:u16, y:u16, color:[u8;3]) {
         self.pixels.push((x, y, color));
     }
     pub fn with_capacity(capacity:usize) -> Self {
         Self {
-            pixels: Vec::with_capacity(capacity)
+            pixels: Vec::with_capacity(capacity),
+            info: DungeonInfo {
+                floor: "".to_owned(),
+                coordinates: None,
+            },
+            has_dead_characters: false,
         }
     }
 }
@@ -36,7 +43,7 @@ pub fn create_ocr_engine() -> OcrEngine {
         ..Default::default()
     }).expect("OcrEngine::new")
 }
-#[derive(Debug, Copy, Clone, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct Coords {
     x: u32,
     y: u32,
@@ -59,10 +66,10 @@ impl From<(u32, u32)> for Coords {
 struct Pixel {
     x: u32,
     y: u32,
-    color: Rgba<u8>,
+    color: Rgb<u8>,
 }
-impl From<(u32, u32, Rgba<u8>)> for Pixel {
-    fn from(value: (u32, u32, Rgba<u8>)) -> Self {
+impl From<(u32, u32, Rgb<u8>)> for Pixel {
+    fn from(value: (u32, u32, Rgb<u8>)) -> Self {
         Self { x: value.0, y: value.1, color: value.2 }
     }
 }
@@ -156,7 +163,7 @@ pub struct Enemy {
     health: Health,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, PartialEq)]
 struct DungeonInfo {
     floor: String,
     coordinates: Option<Coords>,
@@ -229,7 +236,7 @@ impl Tile {
     }
 }
 
-fn get_tiles(info:DungeonInfo, image:&DynamicImage) -> Vec<Tile> {
+fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
     let (x_base, y_base) = if let Some(coords) = info.coordinates {
         (coords.x - (TILE_COUNT.0 + 1 ) / 2, coords.y - (TILE_COUNT.1 + 1 ) / 2 + 1)
     }
@@ -254,7 +261,7 @@ fn get_tiles(info:DungeonInfo, image:&DynamicImage) -> Vec<Tile> {
             let tile = Tile {
                 explored: !pixel_color(image, (x, y).into(), TILE_UNEXPLORED),
                 trap: false,
-                is_city: pixel_color(image, (x-2, y).into(), Rgba([244, 67, 54, 255])),
+                is_city: pixel_color(image, (x-2, y).into(), Rgb([244, 67, 54])),
                 position: Coords{x: x_base + x_count, y: y_base + y_count},
                 north_passable: !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + 1).into(), HEALTH_GREY),
                 east_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y).into(), HEALTH_GREY),
@@ -313,13 +320,20 @@ impl Dungeon {
         self.characters.iter().any(|v|v.health == Health::Dead)
     }
 
-    pub fn new(ocr:&OcrEngine, state:DungeonState, image:&DynamicImage, old_position:Option<Coords>) -> Self {
-        let info = get_info(ocr, image, old_position);
+    pub fn new(state:DungeonState, image:&Bitmap, old_position:Option<Coords>) -> Self {
         let state = Self {
             state,
             characters: get_characters(image),
-            info: info.clone(),
-            tiles: get_tiles(info, image),
+            info: if let Some(p) = image.info.coordinates {
+                image.info.clone()
+            }
+            else {
+                DungeonInfo {
+                    floor: image.info.floor.to_owned(),
+                    coordinates: old_position,
+                }
+            },
+            tiles: get_tiles(&image.info, image),
         };
         state
     }
@@ -511,21 +525,21 @@ pub enum DungeonState {
     Fight(Enemy),
 }
 
-const WHITE:image::Rgba<u8> = image::Rgba([255, 255, 255, 255]);
-const CITY_1:image::Rgba<u8> = image::Rgba([1, 0, 31, 255]);
-const CITY_2:image::Rgba<u8> = image::Rgba([3, 2, 20, 255]);
-const FIGHT:image::Rgba<u8> = image::Rgba([208, 188, 255, 255]);
-const HEALTH_GREY:image::Rgba<u8> = image::Rgba([158, 158, 158, 255]);
-const HEALTH_RED:image::Rgba<u8> = image::Rgba([244, 67, 54, 255]);
-const HEALTH_RED_PLAYER:image::Rgba<u8> = image::Rgba([211, 47, 47, 255]);
-const HEALTH_GREEN:image::Rgba<u8> = image::Rgba([56, 142, 60, 255]);
-const HEALTH_ORANGE:image::Rgba<u8> = image::Rgba([245, 124, 0, 255]);
+const WHITE:image::Rgb<u8> = image::Rgb([255, 255, 255]);
+const CITY_1:image::Rgb<u8> = image::Rgb([1, 0, 31]);
+const CITY_2:image::Rgb<u8> = image::Rgb([3, 2, 20]);
+const FIGHT:image::Rgb<u8> = image::Rgb([208, 188, 255]);
+const HEALTH_GREY:image::Rgb<u8> = image::Rgb([158, 158, 158]);
+const HEALTH_RED:image::Rgb<u8> = image::Rgb([244, 67, 54]);
+const HEALTH_RED_PLAYER:image::Rgb<u8> = image::Rgb([211, 47, 47]);
+const HEALTH_GREEN:image::Rgb<u8> = image::Rgb([56, 142, 60]);
+const HEALTH_ORANGE:image::Rgb<u8> = image::Rgb([245, 124, 0]);
 
-const IDLE_1:image::Rgba<u8> = image::Rgba([202, 196, 208, 255]);
+const IDLE_1:image::Rgb<u8> = image::Rgb([202, 196, 208]);
 
-const TILE_UNEXPLORED:image::Rgba<u8> = image::Rgba([29, 27, 32, 255]);
+const TILE_UNEXPLORED:image::Rgb<u8> = image::Rgb([29, 27, 32]);
 
-fn get_characters(image:&DynamicImage) -> [Character; 4] {
+fn get_characters(image:&Bitmap) -> [Character; 4] {
     std::array::from_fn(|i|{
         let y = 560 + i as u32 * 120;
         let health = if pixel_color(image, (514, y).into(), HEALTH_GREEN) {
@@ -555,7 +569,7 @@ fn has_dead_characters(ocr:&OcrEngine, image:&DynamicImage) -> bool {
     text.contains("dead")
 }
 
-fn get_enemy(image:&DynamicImage) -> Enemy {
+fn get_enemy(image:&Bitmap) -> Enemy {
     let x = if pixel_either_color(image, (90, 1472).into(), [HEALTH_RED, HEALTH_GREY].into_iter()) {
         89
     }
@@ -587,51 +601,51 @@ fn write_coord_to_file(x:u32, y: u32) {
     //write!(f, "{x},{y}\n").unwrap();    
 }
 
-fn pixels_color(image: &DynamicImage, pixels:impl Iterator<Item = Pixel>) -> bool {
+fn pixels_color(image: &Bitmap, pixels:impl Iterator<Item = Pixel>) -> bool {
     pixels.into_iter().all(|pixel|{
         write_coord_to_file(pixel.x, pixel.y);
         //let c = image.get_pixel(pixel.x, pixel.y);
         //println!("{}x{} {:?} {:?}", pixel.x, pixel.y, pixel.color, c);
-        image.get_pixel(pixel.x, pixel.y) == pixel.color
+        *image.get_pixel(pixel.x as u16, pixel.y as u16) == pixel.color.0
     })
 }
-fn pixels_same_color(image: &DynamicImage, pixels:impl Iterator<Item = Coords>, color: Rgba<u8>) -> bool {
+fn pixels_same_color(image: &Bitmap, pixels:impl Iterator<Item = Coords>, color: Rgb<u8>) -> bool {
     pixels.into_iter().all(|coords|{
         write_coord_to_file(coords.x, coords.y);
         //let c = image.get_pixel(coords.x, coords.y);
         //println!("{}x{} {:?} {:?}", coords.x, coords.y, color, c);
-        image.get_pixel(coords.x, coords.y) == color
+        *image.get_pixel(coords.x as u16, coords.y as u16) == color.0
     })
 }
-fn pixel_color(image: &DynamicImage, coords:Coords, color: Rgba<u8>) -> bool {
+fn pixel_color(image: &Bitmap, coords:Coords, color: Rgb<u8>) -> bool {
     write_coord_to_file(coords.x, coords.y);
     //println!("{}x{} {:?} {:?}", coords.x, coords.y, color, image.get_pixel(coords.x, coords.y));
-    image.get_pixel(coords.x, coords.y) == color
+    *image.get_pixel(coords.x as u16, coords.y as u16) == color.0
 }
-fn pixel_either_color(image: &DynamicImage, coords:Coords, colors: impl Iterator<Item = Rgba<u8>>) -> bool {
+fn pixel_either_color(image: &Bitmap, coords:Coords, colors: impl Iterator<Item = Rgb<u8>>) -> bool {
     write_coord_to_file(coords.x, coords.y);
-    let color = image.get_pixel(coords.x, coords.y);
-    colors.into_iter().any(|v|v == color)
+    let color = image.get_pixel(coords.x as u16, coords.y as u16);
+    colors.into_iter().any(|v|v.0 == *color)
 }
 
-pub fn get_state(ocr:&OcrEngine, old_state:State, image:DynamicImage) -> Result<State, StateError> {
-    if pixels_same_color(&image, [(918, 138).into(), (949, 138).into(), (919, 168).into(), (949, 168).into()].into_iter(), image::Rgba([202, 196, 208, 255])) {
+pub fn get_state(old_state:State, image:&Bitmap) -> Result<State, StateError> {
+    if pixels_same_color(&image, [(918, 138).into(), (949, 138).into(), (919, 168).into(), (949, 168).into()].into_iter(), image::Rgb([202, 196, 208])) {
         return Ok(Into::<State>::into(StateType::Ad).merge(old_state));
     }
-    if pixel_color(&image, (466, 1116).into(), image::Rgba([185, 207, 220, 255])) && pixels_same_color(&image, [(690, 1306).into(), (717, 1326).into()].into_iter(), image::Rgba([56, 30, 114, 255])) {
-        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(ocr, DungeonState::IdleChest, &image, old_state.get_position()))).merge(old_state));
+    if pixel_color(&image, (466, 1116).into(), image::Rgb([185, 207, 220])) && pixels_same_color(&image, [(690, 1306).into(), (717, 1326).into()].into_iter(), image::Rgb([56, 30, 114])) {
+        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(DungeonState::IdleChest, &image, old_state.get_position()))).merge(old_state));
     }
-    if (pixel_either_color(&image, (827, 1306).into(), [FIGHT, image::Rgba([192, 172, 241, 255])].into_iter()) ||
-        pixel_either_color(&image, (827, 1260).into(), [FIGHT, image::Rgba([192, 172, 241, 255])].into_iter())) &&
-        !pixel_color(&image, (671, 1309).into(), image::Rgba([56, 30, 114, 255])) {
-        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(ocr, DungeonState::Fight(get_enemy(&image)), &image, old_state.get_position()))).merge(old_state));
+    if (pixel_either_color(&image, (827, 1306).into(), [FIGHT, image::Rgb([192, 172, 241])].into_iter()) ||
+        pixel_either_color(&image, (827, 1260).into(), [FIGHT, image::Rgb([192, 172, 241])].into_iter())) &&
+        !pixel_color(&image, (671, 1309).into(), image::Rgb([56, 30, 114])) {
+        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(DungeonState::Fight(get_enemy(&image)), &image, old_state.get_position()))).merge(old_state));
     }
     if pixel_color(&image, (979, 1083).into(), IDLE_1) && pixel_color(&image, (1023, 1116).into(), IDLE_1) {
         let on_city_tile = pixel_color(&image, (716, 1279).into(), FIGHT);
-        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(ocr, DungeonState::Idle(on_city_tile), &image, old_state.get_position()))).merge(old_state));
+        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(DungeonState::Idle(on_city_tile), &image, old_state.get_position()))).merge(old_state));
     }
     if pixels_color(&image, [(752, 1926, CITY_1).into(), (75, 1512, CITY_2).into()].into_iter()) {
-        return Ok(Into::<State>::into(StateType::City(has_dead_characters(ocr, &image))).merge(old_state));
+        return Ok(Into::<State>::into(StateType::City(image.has_dead_characters)).merge(old_state));
     }
     if pixels_same_color(&image, [(462, 1254).into(), (536, 1262).into(), (615, 1270).into()].into_iter(), WHITE) {
         return Ok(Into::<State>::into(StateType::Main).merge(old_state));
