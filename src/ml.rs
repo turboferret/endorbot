@@ -37,6 +37,12 @@ impl Bitmap {
     pub fn set_info(&mut self, info:DungeonInfo) {
         self.info = info;
     }
+    pub fn get_has_dead_characters(&self) -> bool {
+        self.has_dead_characters
+    }
+    pub fn get_info(&self) -> &DungeonInfo {
+        &self.info
+    }
 }
 
 pub fn create_ocr_engine() -> OcrEngine {
@@ -500,7 +506,7 @@ impl Dungeon {
     }
     
     fn has_unexplored_neighbour(&self, tile: &Tile) -> bool {
-        if tile.north_passable {
+        if tile.north_passable && tile.position.y > 0 {
             if !self.get_tile(tile.position.x, tile.position.y - 1).explored {
                 return true;
             }
@@ -511,11 +517,12 @@ impl Dungeon {
             }
         }
         if tile.east_passable {
+            println!("{}x{}", tile.position.x, tile.position.y);
             if !self.get_tile(tile.position.x + 1, tile.position.y).explored {
                 return true;
             }
         }
-        if tile.west_passable {
+        if tile.west_passable && tile.position.x > 0 {
             if !self.get_tile(tile.position.x - 1, tile.position.y).explored {
                 return true;
             }
@@ -681,6 +688,7 @@ pub enum Action {
 }
 
 pub fn determine_action(state:&State, last_action:Action, old_position:Option<Coords>) -> Action {
+   // println!("{state:?}");
     match state.state_type {
         StateType::Ad => {
             Action::CloseAd
