@@ -575,7 +575,9 @@ fn get_characters(image:&Bitmap) -> [Character; 4] {
 }
 
 pub fn has_dead_characters(ocr:&OcrEngine, image:&DynamicImage) -> bool {
-    let img_source = ImageSource::from_bytes(image.as_bytes(), image.dimensions()).expect("from_bytes");
+    let img = image.clone().sub_image(143, 520, 375, 394).to_image();
+    let img_source = ImageSource::from_bytes(img.as_bytes(), (375, 394)).expect("from_bytes");
+    //let img_source = ImageSource::from_bytes(image.as_bytes(), image.dimensions()).expect("from_bytes");
     let ocr_input = ocr.prepare_input(img_source).expect("prepare_input");
     
     let text = ocr.get_text(&ocr_input).expect("get_text");
