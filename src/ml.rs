@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, process::{Command, Stdio}};
+use std::{collections::{HashMap, HashSet}, io::Write, process::{Command, Stdio}};
 
 use image::{DynamicImage, EncodableLayout, GenericImage, GenericImageView, Rgba};
 use ocrs::{ImageSource, OcrEngine, OcrEngineParams};
@@ -7,6 +7,24 @@ use rten::Model;
 use serde::{Deserialize, Serialize};
 
 use crate::Opt;
+
+#[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, PartialEq)]
+pub struct Bitmap {
+    pixels: Vec<(u16, u16, [u8;3])>,
+}
+impl Bitmap {
+    pub fn get_pixel(&self, x:u16, y:u16) -> Option<&[u8; 3]> {
+        self.pixels.iter().find_map(|(px, py, color)|if (x, y) == (*px, *py){Some(color)}else{None})
+    }
+    pub fn set_pixel(&mut self, x:u16, y:u16, color:[u8;3]) {
+        self.pixels.push((x, y, color));
+    }
+    pub fn with_capacity(capacity:usize) -> Self {
+        Self {
+            pixels: Vec::with_capacity(capacity)
+        }
+    }
+}
 
 pub fn create_ocr_engine() -> OcrEngine {
     let recognition_model = Model::load_file("ocr/text-recognition.rten").expect("load_file");
@@ -248,9 +266,6 @@ fn get_tiles(info:DungeonInfo, image:&DynamicImage) -> Vec<Tile> {
                 continue;
             }
             
-            if tile.is_city {
-                println!("City tile = {tile:?}");
-            }
             /*if tile.position.x == 16 && tile.position.y == 15 {
                 if tile.west_passable {
                     println!("{tile:?} {}x{y} {:?} {x}x{y} {:?}", TILE_START.0 + x_count * TILE_SIZE.0 + 1, image.get_pixel(TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y), image.get_pixel(x, y));
@@ -567,8 +582,14 @@ fn get_enemy(image:&DynamicImage) -> Enemy {
     }
 }
 
+fn write_coord_to_file(x:u32, y: u32) {
+    //let mut f = std::fs::OpenOptions::new().write(true).create(true).append(true).open("coords.txt").unwrap();
+    //write!(f, "{x},{y}\n").unwrap();    
+}
+
 fn pixels_color(image: &DynamicImage, pixels:impl Iterator<Item = Pixel>) -> bool {
     pixels.into_iter().all(|pixel|{
+        write_coord_to_file(pixel.x, pixel.y);
         //let c = image.get_pixel(pixel.x, pixel.y);
         //println!("{}x{} {:?} {:?}", pixel.x, pixel.y, pixel.color, c);
         image.get_pixel(pixel.x, pixel.y) == pixel.color
@@ -576,16 +597,19 @@ fn pixels_color(image: &DynamicImage, pixels:impl Iterator<Item = Pixel>) -> boo
 }
 fn pixels_same_color(image: &DynamicImage, pixels:impl Iterator<Item = Coords>, color: Rgba<u8>) -> bool {
     pixels.into_iter().all(|coords|{
+        write_coord_to_file(coords.x, coords.y);
         //let c = image.get_pixel(coords.x, coords.y);
         //println!("{}x{} {:?} {:?}", coords.x, coords.y, color, c);
         image.get_pixel(coords.x, coords.y) == color
     })
 }
 fn pixel_color(image: &DynamicImage, coords:Coords, color: Rgba<u8>) -> bool {
+    write_coord_to_file(coords.x, coords.y);
     //println!("{}x{} {:?} {:?}", coords.x, coords.y, color, image.get_pixel(coords.x, coords.y));
     image.get_pixel(coords.x, coords.y) == color
 }
 fn pixel_either_color(image: &DynamicImage, coords:Coords, colors: impl Iterator<Item = Rgba<u8>>) -> bool {
+    write_coord_to_file(coords.x, coords.y);
     let color = image.get_pixel(coords.x, coords.y);
     colors.into_iter().any(|v|v == color)
 }

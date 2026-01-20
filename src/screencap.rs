@@ -72,15 +72,15 @@ impl From<LoadBitmapError> for ScreencapError {
 
 pub fn screencap(device:&str, opt:&Opt) -> Result<DynamicImage, ScreencapError> {
     if opt.local {
-        screencap_framebuffer(device, opt)
-        /*let output = Command::new("screencap")
+        //screencap_framebuffer(device, opt)
+        let output = Command::new("screencap")
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .stdout(Stdio::piped())
         .spawn()?.wait_with_output()?;
         if output.status.success() {
-            return load_bitmap(&output.stdout).map_err(|err|err.into())
-        }*/
+            return load_bitmap(&output.stdout).map_err(|err|err.into());
+        }
     }
     else {
         let output = Command::new("adb").arg("-s").arg(device).arg("exec-out").arg("screencap")
@@ -89,12 +89,10 @@ pub fn screencap(device:&str, opt:&Opt) -> Result<DynamicImage, ScreencapError> 
         .stdout(Stdio::piped())
         .spawn()?.wait_with_output()?;
         if output.status.success() {
-            return load_bitmap(&output.stdout).map_err(|err|err.into())
-        }
-        else {
-            Err(ScreencapError::Failed)
+            return load_bitmap(&output.stdout).map_err(|err|err.into());
         }
     }
+    Err(ScreencapError::Failed)
 }
 
 pub fn screencap_framebuffer(device:&str, opt:&Opt) -> Result<DynamicImage, ScreencapError> {
