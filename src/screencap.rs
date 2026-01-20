@@ -84,13 +84,12 @@ pub fn screencap_bitmap(device:&str, opt:&Opt) -> Option<Bitmap> {
         return Some(bitmap);
     }
     else {
-        let output = Command::new("adb").arg("-s").arg(device).arg("exec-out").arg("sh").arg("-c").arg("cd /data/matv/tmp/ && enderbot --local --screencap")
+        let output = Command::new("adb").arg("-s").arg(device).arg("exec-out").arg("sh").arg("-c").arg("cd /data/local/tmp/ && ./endorbot --local --screencap")
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .stdout(Stdio::piped())
         .spawn().unwrap().wait_with_output().unwrap();
         if output.status.success() {
-            println!("{}", output.stdout.len());
             return Some(rkyv::from_bytes::<Bitmap, rkyv::rancor::Error>(&output.stdout).unwrap());
         }
     }

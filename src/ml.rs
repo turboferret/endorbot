@@ -16,7 +16,7 @@ pub struct Bitmap {
 }
 impl Bitmap {
     pub fn get_pixel(&self, x:u16, y:u16) -> &[u8; 3] {
-        self.pixels.iter().find_map(|(px, py, color)|if (x, y) == (*px, *py){Some(color)}else{None}).unwrap()
+        self.pixels.iter().find_map(|(px, py, color)|if (x, y) == (*px, *py){Some(color)}else{None}).expect(&format!("{x}x{y} not found"))
     }
     pub fn set_pixel(&mut self, x:u16, y:u16, color:[u8;3]) {
         self.pixels.push((x, y, color));
