@@ -23,6 +23,8 @@ struct Opt {
     screencap: bool,
     #[clap(long, action, default_value_t = false)]
     debug: bool,
+    #[clap(long, action, default_value_t = true)]
+    ocr: bool,
 }
 //  1080x2408
 fn main() {
