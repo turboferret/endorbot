@@ -176,7 +176,7 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
         return TextChar::Digit(7);
     }
     if opt.debug {
-        println!("\tCheck 7");
+        println!("\tCheck 3");
     }
     if get_pixel(image, x, y, x, y + 1, opt) == clr
         && get_pixel(image, x, y, x - 6, y + 2, opt) == clr
