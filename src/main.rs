@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, convert::Infallible, io::Write, sync::Arc};
+use std::{collections::{HashMap, HashSet}, convert::Infallible, io::Write, path::PathBuf, sync::Arc};
 
 use astra::{Body, Request, ResponseBuilder};
 use clap::Parser;
@@ -11,7 +11,7 @@ use crate::ml::{Action, Bitmap, State};
 mod screencap;
 mod ml;
 
-#[derive(Parser, Copy, Clone)]
+#[derive(Parser, Clone)]
 struct Opt {
     #[clap(long, action, default_value_t = false)]
     step: bool,
@@ -25,10 +25,27 @@ struct Opt {
     debug: bool,
     #[clap(long, action, default_value_t = false)]
     no_ocr: bool,
+    #[clap(long)]
+    test: Option<PathBuf>,
 }
 //  1080x2408
 fn main() {
     let opt = Opt::parse();
+
+    if let Some(test) = &opt.test {
+        let image = screencap::load_png_from_file(test.to_path_buf()).unwrap();
+        let bitmap = screencap::bitmap_from_image(&image, &opt).unwrap();
+        match ml::get_state(State::default(), &bitmap) {
+            Ok(state) => {
+                println!("{state:?}");
+            },
+            Err(err) => {
+                println!("{:?}", err);
+            },
+        }
+        return;
+    }
+
     let device = "RF8W101PHWF";
 
     if opt.screencap {
@@ -195,6 +212,8 @@ fn main() {
         }).unwrap();
     });
 
+    let step = opt.step;
+
     let main_state = old_state.clone();
     let mut last_action = Action::CloseAd;
     loop {
@@ -202,7 +221,7 @@ fn main() {
             let guard = main_state.lock();
             guard.clone()
         };
-        let (state, action) = run(opt, device, snapshot, last_action);
+        let (state, action) = run(&opt, device, snapshot, last_action);
         last_action = action;
         match action {
             Action::CloseAd => {
@@ -236,14 +255,14 @@ fn main() {
             guard.clone()
         };
         std::fs::write("state", serde_json::to_string(&snapshot).unwrap()).unwrap();
-        if opt.step {
+        if step {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
 }
 
-fn run(opt:Opt, device:&str, old_state:State, last_action:Action) -> (State, Action) {
+fn run(opt:&Opt, device:&str, old_state:State, last_action:Action) -> (State, Action) {
     //let img = screencap::screencap(device, &opt).unwrap();
     let img = screencap::screencap_bitmap(device, &opt).unwrap();
     println!("{:?} {:?}", img.get_info(), img.get_has_dead_characters());

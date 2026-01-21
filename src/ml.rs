@@ -57,8 +57,8 @@ pub fn create_ocr_engine() -> OcrEngine {
 }
 #[derive(Debug, Copy, Clone, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct Coords {
-    x: u32,
-    y: u32,
+    pub x: u32,
+    pub y: u32,
 }
 impl Coords {
     pub fn move_direction(&self, direction:MoveDirection) -> Self {
@@ -187,8 +187,8 @@ pub struct Enemy {
 
 #[derive(Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, PartialEq)]
 pub struct DungeonInfo {
-    floor: String,
-    coordinates: Option<Coords>,
+    pub floor: String,
+    pub coordinates: Option<Coords>,
 }
 
 pub fn get_info(ocr:&OcrEngine, image:&DynamicImage, old_position:Option<Coords>) -> DungeonInfo {
@@ -500,7 +500,7 @@ impl Dungeon {
             out
         };
         if let Some((path, _cost)) = astar(&current_tile.position, successors, |p|manhattan(*p, goal.position), |p|*p == goal.position) {
-            println!("{path:?}");
+            //println!("{path:?}");
             map.get(path.get(1).unwrap()).copied().copied()
         }
         else {
@@ -527,7 +527,6 @@ impl Dungeon {
             }
         }
         if tile.east_passable {
-            println!("{}x{}", tile.position.x, tile.position.y);
             if !self.get_tile(tile.position.x + 1, tile.position.y).explored {
                 return true;
             }
@@ -748,7 +747,12 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
                     }
                     else {
                         let tile = if let Action::FindFight(_move_direction, target_tile) = last_action {
-                            target_tile
+                            if target_tile.position == dungeon.get_current_tile().position {
+                                dungeon.get_unexplored_tile(old_position)
+                            }
+                            else {
+                                target_tile
+                            }
                         }
                         else {
                             dungeon.get_unexplored_tile(old_position)
@@ -800,7 +804,7 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
     }
 }
 
-pub fn run_action(device:&str, opt:Opt, _state:&State, action:&Action) -> Option<Coords> {
+pub fn run_action(device:&str, opt:&Opt, _state:&State, action:&Action) -> Option<Coords> {
     match action {
         Action::CloseAd => {
             adb_tap(device, opt, 935, 153);
@@ -835,7 +839,7 @@ pub fn run_action(device:&str, opt:Opt, _state:&State, action:&Action) -> Option
     None
 }
 
-fn adb_move(device:&str, opt:Opt, move_direction:&MoveDirection) {
+fn adb_move(device:&str, opt:&Opt, move_direction:&MoveDirection) {
     match move_direction {
         MoveDirection::North => adb_tap(device, opt, 774, 2085),
         MoveDirection::East => adb_tap(device, opt, 953, 2277),
@@ -861,7 +865,7 @@ fn adb_move(device:&str, opt:Opt, move_direction:&MoveDirection) {
     };
 }*/
 
-fn adb_tap(device:&str, opt:Opt, x:u32, y:u32) {
+fn adb_tap(device:&str, opt:&Opt, x:u32, y:u32) {
     let _ = if opt.local {
         Command::new("input").arg("tap").arg(x.to_string()).arg(y.to_string())
         .stdin(Stdio::null())
