@@ -265,13 +265,24 @@ fn main() {
 fn run(opt:&Opt, device:&str, old_state:State, last_action:Action) -> (State, Action) {
     //let img = screencap::screencap(device, &opt).unwrap();
     let img = screencap::screencap_bitmap(device, &opt).unwrap();
-    println!("{:?} {:?}", img.get_info(), img.get_has_dead_characters());
+    //println!("{:?} {:?}", img.get_info(), img.get_has_dead_characters());
     //img.save_with_format("cap.png", image::ImageFormat::Png).unwrap();
     let old_position = old_state.get_position();
     let state = ml::get_state(old_state, &img).unwrap();
     //println!("{:?}", state);
     let action = ml::determine_action(&state, last_action, old_position);
-    println!("{:?}", action);
+    println!("{:?}", state.get_position());
+    match action {
+        Action::CloseAd => println!("CloseAd"),
+        Action::GotoTown => println!("GotoTown"),
+        Action::GotoDungeon => println!("GotoDungeon"),
+        Action::FindFight(move_direction, tile) => println!("FindFight {move_direction:?} target = {:?}", tile.get_position()),
+        Action::Fight => println!("Fight"),
+        Action::OpenChest => println!("OpenChest"),
+        Action::ReturnToTown(_, move_direction) => println!("ReturnToTown {move_direction:?}"),
+        Action::Resurrect => println!("Resurrect"),
+    }
+    //println!("{:?}", action);
     if !opt.no_action {
         ml::run_action(device, opt, &state, &action);
     }

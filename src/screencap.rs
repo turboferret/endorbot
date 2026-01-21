@@ -158,7 +158,7 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
         && get_pixel(image, x, y, x + 4, y + 6, opt) != clr
         && get_pixel(image, x, y, x - 7, y, opt) == gray
         && get_pixel(image, x, y, x, y + 14, opt) == gray
-            && get_pixel(image, x, y, x - 6, y + 9, opt) == clr {
+            && (get_pixel(image, x, y, x - 6, y + 9, opt) == clr || get_pixel(image, x, y, x - 4, y + 9, opt) == clr) {
         return TextChar::Digit(6);
     }
     if opt.debug {

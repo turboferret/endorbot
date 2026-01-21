@@ -256,6 +256,9 @@ impl Tile {
             MoveDirection::East
         }
     }
+    pub fn get_position(&self) -> Coords {
+        self.position
+    }
 }
 
 fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
@@ -463,52 +466,133 @@ impl Dungeon {
         if current_tile.position == goal.position {
             return Some(current_tile);
         }
-        let map: HashMap<Coords, &Tile> = self.tiles.iter().map(|t| (t.position, t)).collect();
+        //let map: HashMap<Coords, &Tile> = self.tiles.iter().map(|t| (t.position, t)).collect();
         let successors = |pos: &Coords| -> Vec<(Coords, u32)> {
-            let Some(tile) = map.get(pos) else { return vec![]; };
+            let tile = self.get_tile(pos.x, pos.y);
 
             let mut out = Vec::with_capacity(4);
 
             // Norr: y - 1 (anpassa om ditt koordinatsystem är tvärtom)
             if tile.north_passable {
                 let n = Coords { x: pos.x, y: pos.y - 1 };
-                if map.contains_key(&n) {
                     out.push((n, 1));
-                }
             }
             // Öst: x + 1
             if tile.east_passable {
                 let e = Coords { x: pos.x + 1, y: pos.y };
-                if map.contains_key(&e) {
                     out.push((e, 1));
-                }
             }
             // Syd: y + 1
             if tile.south_passable {
                 let s = Coords { x: pos.x, y: pos.y + 1 };
-                if map.contains_key(&s) {
                     out.push((s, 1));
-                }
             }
             // Väst: x - 1
             if tile.west_passable {
                 let w = Coords { x: pos.x - 1, y: pos.y };
-                if map.contains_key(&w) {
                     out.push((w, 1));
-                }
             }
             out
         };
         if let Some((path, _cost)) = astar(&current_tile.position, successors, |p|manhattan(*p, goal.position), |p|*p == goal.position) {
             //println!("{path:?}");
-            map.get(path.get(1).unwrap()).copied().copied()
+            let pos = path.get(1).unwrap();
+            Some(self.get_tile(pos.x, pos.y))
         }
         else {
             None
         }
     }
+
+    fn get_closest_unexplored_tile(&self, current_tile:Tile) -> Option<Tile> {
+        use pathfinding::prelude::astar;
+        //let map: HashMap<Coords, &Tile> =
+            //self.tiles.iter().map(|t| (t.position, t)).collect();
+
+        let successors = |pos: &Coords| -> Vec<(Coords, u32)> {
+            //let Some(tile) = map.get(pos) else { return vec![]; };
+            let tile = self.get_tile(pos.x, pos.y);
+            let mut out = Vec::with_capacity(4);
+            if tile.north_passable {
+                let n = Coords { x: pos.x, y: pos.y - 1 };
+                //if map.contains_key(&n) {
+                    out.push((n, 1));
+                //}
+            }
+            if tile.east_passable {
+                let e = Coords { x: pos.x + 1, y: pos.y };
+                //if map.contains_key(&e) {
+                    out.push((e, 1));
+                //}
+            }
+            if tile.south_passable {
+                let s = Coords { x: pos.x, y: pos.y + 1 };
+                //if map.contains_key(&s) {
+                    out.push((s, 1));
+                //}
+            }
+            if tile.west_passable {
+                let w = Coords { x: pos.x - 1, y: pos.y };
+                //if map.contains_key(&w) {
+                    out.push((w, 1));
+                //}
+            }
+
+            out
+        };
+
+        let is_goal = |pos: &Coords| {
+            !self.get_tile(pos.x, pos.y).explored
+            //map.get(pos).map_or(false, |t| !t.explored)
+        };
+
+        if let Some(result) = astar(
+            &current_tile.position,
+            successors,
+            |_| 0u32,
+            is_goal,
+        ) {
+            //println!("astar {result:?}");
+            if !result.0.is_empty() {
+                let pos = result.0.last().unwrap();
+                return Some(self.get_tile(pos.x, pos.y));
+            }
+        }
+        else {
+            println!("found no unexplored tile");
+        }
+        None
+    }
     
     fn get_unexplored_tile(&self, old_position: Option<Coords>) -> Tile {
+        let me = self.get_current_tile();
+        if let Some(tile) = self.get_closest_unexplored_tile(me) {
+            return tile;
+        }
+        if me.west_passable && me.position.x > 0 {
+            let tile = self.get_tile(me.position.x - 1, me.position.y);
+            if !tile.explored {
+                return tile;
+            }
+        }
+        if me.east_passable {
+            let tile = self.get_tile(me.position.x + 1, me.position.y);
+            if !tile.explored {
+                return tile;
+            }
+        }
+        if me.north_passable && me.position.y > 0 {
+            let tile = self.get_tile(me.position.x, me.position.y - 1);
+            if !tile.explored {
+                return tile;
+            }
+        }
+        if me.south_passable {
+            let tile = self.get_tile(me.position.x, me.position.y + 1);
+            if !tile.explored {
+                return tile;
+            }
+        }
         if let Some(tile) = self.tiles.iter().filter(|tile|self.has_unexplored_neighbour(tile)).choose(&mut rand::rng()) {
             return *tile;
         }
@@ -748,13 +832,16 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
                     else {
                         let tile = if let Action::FindFight(_move_direction, target_tile) = last_action {
                             if target_tile.position == dungeon.get_current_tile().position {
+                                println!("looking for unexplored tile");
                                 dungeon.get_unexplored_tile(old_position)
                             }
                             else {
+                                println!("using last target tile");
                                 target_tile
                             }
                         }
                         else {
+                            println!("looking for unexplored tile");
                             dungeon.get_unexplored_tile(old_position)
                         };
                         if let Some(next_tile) = dungeon.get_next_tile_to_goal(dungeon.get_current_tile(), tile) {
