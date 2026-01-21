@@ -113,9 +113,9 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
     if get_pixel(image, x, y, x, y + 1, opt) == clr
         && get_pixel(image, x, y, x - 5, y + 3, opt) == clr
         && get_pixel(image, x, y, x - 2, y + 6, opt) == gray
-        && get_pixel(image, x, y, x + 2, y + 6, opt) == clr
+        && get_pixel(image, x, y, x + 4, y + 6, opt) == clr
         && get_pixel(image, x, y, x + 3, y + 19, opt) == clr
-        && get_pixel(image, x, y, x - 8, y + 3, opt) == clr
+        && get_pixel(image, x, y, x - 6, y + 3, opt) == clr
             && get_pixel(image, x, y, x - 6, y + 21, opt) == clr {
         return TextChar::Digit(2);
     }
@@ -173,6 +173,7 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
     }
     if get_pixel(image, x, y, x, y + 1, opt) == clr
         && get_pixel(image, x, y, x, y + 5, opt) != clr
+        && get_pixel(image, x, y, x - 5, y + 6, opt) == clr
         && get_pixel(image, x, y, x + 1, y + 6, opt) == gray
         && get_pixel(image, x, y, x + 1, y + 14, opt) == gray
             && get_pixel(image, x, y, x - 4, y + 2, opt) == clr
@@ -191,6 +192,7 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
     }
     if get_pixel(image, x, y, x, y + 1, opt) == clr
         && get_pixel(image, x, y, x - 2, y + 6, opt) != clr
+        && get_pixel(image, x, y, x + 6, y + 16, opt) != clr
             && get_pixel(image, x, y, x - 5, y + 2, opt) == clr
             && get_pixel(image, x, y, x + 5, y + 2, opt) == clr {
         return TextChar::Digit(7);
@@ -199,10 +201,10 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
         println!("\tCheck 3");
     }
     if get_pixel(image, x, y, x, y + 1, opt) == clr
-        && get_pixel(image, x, y, x - 6, y + 2, opt) == clr
-            && get_pixel(image, x, y, x - 3, y + 10, opt) == clr
-            && get_pixel(image, x, y, x - 3, y + 10, opt) == clr
-            && get_pixel(image, x, y, x - 5, y + 18, opt) == clr {
+        && get_pixel(image, x, y, x - 5, y + 2, opt) == clr
+            && get_pixel(image, x, y, x - 2, y + 10, opt) == clr
+            && get_pixel(image, x, y, x - 2, y + 10, opt) == clr
+            && get_pixel(image, x, y, x - 4, y + 18, opt) == clr {
         return TextChar::Digit(3);
     }
     //println!("{x}x{y}");
