@@ -132,7 +132,7 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage) -> TextChar {
         return TextChar::Digit(4);
     }
     if image.get_pixel(x, y + 1) == clr
-        && image.get_pixel(x, y + 5) == gray
+        && image.get_pixel(x - 2, y + 6) != clr
             && image.get_pixel(x - 5, y + 2) == clr
             && image.get_pixel(x + 7, y + 2) == clr {
         return TextChar::Digit(7);
