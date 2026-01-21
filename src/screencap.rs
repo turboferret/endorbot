@@ -154,7 +154,7 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
         println!("\tCheck 6");
     }
     if get_pixel(image, x, y, x, y + 1, opt) == clr
-        && get_pixel(image, x, y, x + 3, y + 5, opt) == gray
+        && get_pixel(image, x, y, x + 6, y + 6, opt) != clr
         && get_pixel(image, x, y, x - 7, y, opt) == gray
         && get_pixel(image, x, y, x, y + 14, opt) == gray
             && get_pixel(image, x, y, x - 6, y + 9, opt) == clr {
