@@ -77,64 +77,102 @@ enum TextChar {
     Unknown,
 }
 
-fn find_text_char(x:u32, y:u32, image:&DynamicImage) -> TextChar {
+fn get_pixel(image:&DynamicImage, bx:u32, by:u32, x:u32, y:u32, opt:&Opt) -> image::Rgba<u8> {
+    let clr = image.get_pixel(x, y);
+    if opt.debug {
+        println!("{}x{} = {clr:?}", bx - x, by - x);
+    }
+    clr
+}
+
+fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
     let clr = image::Rgba([230, 224, 233, 255]);
     let gray = image::Rgba([29, 27, 32, 255]);
     /*if x == 292 {
         println!("{}x{} {}x{} {}x{} {}x{} {}x{} {}x{}", x,y+1, x-5, y+3, x-2, y+6, x+2,y+6,x+3,y+19,x-6,y+21);
         println!("{:?} {:?} {:?} {:?} {:?} {:?}", image.get_pixel(x, y + 1), image.get_pixel(x - 5, y + 3), image.get_pixel(x - 2, y + 6), image.get_pixel(x + 2, y + 6), image.get_pixel(x + 3, y + 19), image.get_pixel(x - 6, y + 21));
     }*/
-    if image.get_pixel(x, y - 2) == clr && image.get_pixel(x, y + 26) == clr {  //  )
+    if opt.debug {
+        println!("Check UNKNOWN");
+    }
+    if get_pixel(image, x, y, x, y - 2, opt) == clr && get_pixel(image, x, y, x, y + 26, opt) == clr {  //  )
+        if opt.debug {
+            println!("Found UNKNOWN");
+        }
         return TextChar::Unknown;
     }
-    if image.get_pixel(x, y + 25) == clr || image.get_pixel(x, y + 26) == clr {   //  ,
+    if opt.debug {
+        println!("Check COMMA");
+    }
+    if get_pixel(image, x, y, x, y + 25, opt) == clr || get_pixel(image, x, y, x, y + 26, opt) == clr {   //  ,
         return TextChar::Comma;
     }
-    if image.get_pixel(x, y + 1) == clr
-        && image.get_pixel(x - 5, y + 3) == clr
-        && image.get_pixel(x - 2, y + 6) == gray
-        && image.get_pixel(x + 2, y + 6) == clr
-        && image.get_pixel(x + 3, y + 19) == clr
-        && image.get_pixel(x - 8, y + 3) == clr
-            && image.get_pixel(x - 6, y + 21) == clr {
+    if opt.debug {
+        println!("Check 2");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x - 5, y + 3, opt) == clr
+        && get_pixel(image, x, y, x - 2, y + 6, opt) == gray
+        && get_pixel(image, x, y, x + 2, y + 6, opt) == clr
+        && get_pixel(image, x, y, x + 3, y + 19, opt) == clr
+        && get_pixel(image, x, y, x - 8, y + 3, opt) == clr
+            && get_pixel(image, x, y, x - 6, y + 21, opt) == clr {
         return TextChar::Digit(2);
     }
-    if image.get_pixel(x, y + 1) == clr                     //  1   381x1053
-        && image.get_pixel(x - 5, y + 3) == clr        //  1   374x1055
-            && image.get_pixel(x - 6, y + 21) == clr {        //  1   373x1073
+    if opt.debug {
+        println!("Check 1");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr                     //  1   381x1053
+        && get_pixel(image, x, y, x - 5, y + 3, opt) == clr        //  1   374x1055
+            && get_pixel(image, x, y, x - 6, y + 21, opt) == clr {        //  1   373x1073
         return TextChar::Digit(1);
     }
-    if image.get_pixel(x, y + 1) == clr
-        && image.get_pixel(x - 1, y + 10) == clr
-        && image.get_pixel(x - 7, y + 10) == clr
-        && image.get_pixel(x + 4, y + 5) == clr
-        && image.get_pixel(x - 5, y + 3) == clr
-        && image.get_pixel(x - 7, y) == gray
-            && image.get_pixel(x - 6, y + 9) == clr {
+    if opt.debug {
+        println!("Check 0");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x - 1, y + 10, opt) == clr
+        && get_pixel(image, x, y, x - 7, y + 10, opt) == clr
+        && get_pixel(image, x, y, x + 4, y + 5, opt) == clr
+        && get_pixel(image, x,y, x - 5, y + 3, opt) == clr
+        && get_pixel(image, x, y, x - 7, y, opt) == gray
+            && get_pixel(image, x, y, x - 6, y + 9, opt) == clr {
         return TextChar::Digit(0);
     }
-    if image.get_pixel(x, y + 1) == clr
-        && image.get_pixel(x - 7, y) == gray
-        && image.get_pixel(x, y + 14) == gray
-            && image.get_pixel(x - 6, y + 9) == clr {
+    if opt.debug {
+        println!("Check 6");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x - 7, y, opt) == gray
+        && get_pixel(image, x, y, x, y + 14, opt) == gray
+            && get_pixel(image, x, y, x - 6, y + 9, opt) == clr {
         return TextChar::Digit(6);
     }
-    if image.get_pixel(x, y + 1) == clr
-        && image.get_pixel(x, y + 5) != clr
-        && image.get_pixel(x + 1, y + 6) == gray
-        && image.get_pixel(x + 1, y + 14) == gray
-            && image.get_pixel(x - 4, y + 2) == clr
-            && image.get_pixel(x + 5, y + 2) == clr {
+    if opt.debug {
+        println!("Check 5");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x, y + 5, opt) != clr
+        && get_pixel(image, x, y, x + 1, y + 6, opt) == gray
+        && get_pixel(image, x, y, x + 1, y + 14, opt) == gray
+            && get_pixel(image, x, y, x - 4, y + 2, opt) == clr
+            && get_pixel(image, x, y, x + 5, y + 2, opt) == clr {
         return TextChar::Digit(5);
     }
-    if image.get_pixel(x + 2, y + 1) == clr
-        && image.get_pixel(x - 1, y + 11) == gray {
+    if opt.debug {
+        println!("Check 4");
+    }
+    if get_pixel(image, x, y, x + 2, y + 1, opt) == clr
+        && get_pixel(image, x, y, x - 1, y + 11, opt) == gray {
         return TextChar::Digit(4);
     }
-    if image.get_pixel(x, y + 1) == clr
-        && image.get_pixel(x - 2, y + 6) != clr
-            && image.get_pixel(x - 5, y + 2) == clr
-            && image.get_pixel(x + 7, y + 2) == clr {
+    if opt.debug {
+        println!("Check 7");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x - 2, y + 6, opt) != clr
+            && get_pixel(image, x, y, x - 5, y + 2, opt) == clr
+            && get_pixel(image, x, y, x + 7, y + 2, opt) == clr {
         return TextChar::Digit(7);
     }
     //println!("{x}x{y}");
@@ -155,7 +193,7 @@ fn get_info(image:&DynamicImage, opt:&Opt) -> DungeonInfo {
             let mut numbers = Vec::new();
             let mut current_number = None;
             loop {
-                match find_text_char(x, y, image) {
+                match find_text_char(x, y, image, opt) {
                     TextChar::Digit(v) => {
                         if opt.debug {
                             println!("{x}x{y} = {v}");
