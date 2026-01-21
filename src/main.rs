@@ -258,7 +258,7 @@ fn main() {
         if step {
             break;
         }
-        std::thread::sleep(std::time::Duration::from_millis(200));
+        std::thread::sleep(std::time::Duration::from_millis(300));
     }
 }
 

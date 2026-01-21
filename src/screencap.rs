@@ -80,7 +80,7 @@ enum TextChar {
 fn get_pixel(image:&DynamicImage, bx:u32, by:u32, x:u32, y:u32, opt:&Opt) -> image::Rgba<u8> {
     let clr = image.get_pixel(x, y);
     if opt.debug {
-        println!("{}x{} = {clr:?}", x as i32 - bx as i32, y as i32 - by as i32);
+        println!("\t\t{}x{} = {clr:?}", x as i32 - bx as i32, y as i32 - by as i32);
     }
     clr
 }
@@ -93,22 +93,22 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
         println!("{:?} {:?} {:?} {:?} {:?} {:?}", image.get_pixel(x, y + 1), image.get_pixel(x - 5, y + 3), image.get_pixel(x - 2, y + 6), image.get_pixel(x + 2, y + 6), image.get_pixel(x + 3, y + 19), image.get_pixel(x - 6, y + 21));
     }*/
     if opt.debug {
-        println!("Check UNKNOWN");
+        println!("\tCheck UNKNOWN");
     }
     if get_pixel(image, x, y, x, y - 2, opt) == clr && get_pixel(image, x, y, x, y + 26, opt) == clr {  //  )
         if opt.debug {
-            println!("Found UNKNOWN");
+            println!("\tFound UNKNOWN");
         }
         return TextChar::Unknown;
     }
     if opt.debug {
-        println!("Check COMMA");
+        println!("\tCheck COMMA");
     }
     if get_pixel(image, x, y, x, y + 25, opt) == clr || get_pixel(image, x, y, x, y + 26, opt) == clr {   //  ,
         return TextChar::Comma;
     }
     if opt.debug {
-        println!("Check 2");
+        println!("\tCheck 2");
     }
     if get_pixel(image, x, y, x, y + 1, opt) == clr
         && get_pixel(image, x, y, x - 5, y + 3, opt) == clr
@@ -120,7 +120,7 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
         return TextChar::Digit(2);
     }
     if opt.debug {
-        println!("Check 1");
+        println!("\tCheck 1");
     }
     if get_pixel(image, x, y, x, y + 1, opt) == clr                     //  1   381x1053
         && get_pixel(image, x, y, x - 5, y + 3, opt) == clr        //  1   374x1055
@@ -128,7 +128,7 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
         return TextChar::Digit(1);
     }
     if opt.debug {
-        println!("Check 0");
+        println!("\tCheck 0");
     }
     if get_pixel(image, x, y, x, y + 1, opt) == clr
         && get_pixel(image, x, y, x - 1, y + 10, opt) == clr
@@ -140,7 +140,7 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
         return TextChar::Digit(0);
     }
     if opt.debug {
-        println!("Check 6");
+        println!("\tCheck 6");
     }
     if get_pixel(image, x, y, x, y + 1, opt) == clr
         && get_pixel(image, x, y, x - 7, y, opt) == gray
@@ -149,7 +149,7 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
         return TextChar::Digit(6);
     }
     if opt.debug {
-        println!("Check 5");
+        println!("\tCheck 5");
     }
     if get_pixel(image, x, y, x, y + 1, opt) == clr
         && get_pixel(image, x, y, x, y + 5, opt) != clr
@@ -160,20 +160,30 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
         return TextChar::Digit(5);
     }
     if opt.debug {
-        println!("Check 4");
+        println!("\tCheck 4");
     }
     if get_pixel(image, x, y, x + 2, y + 1, opt) == clr
         && get_pixel(image, x, y, x - 1, y + 11, opt) == gray {
         return TextChar::Digit(4);
     }
     if opt.debug {
-        println!("Check 7");
+        println!("\tCheck 7");
     }
     if get_pixel(image, x, y, x, y + 1, opt) == clr
         && get_pixel(image, x, y, x - 2, y + 6, opt) != clr
             && get_pixel(image, x, y, x - 5, y + 2, opt) == clr
             && get_pixel(image, x, y, x + 5, y + 2, opt) == clr {
         return TextChar::Digit(7);
+    }
+    if opt.debug {
+        println!("\tCheck 7");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x - 6, y + 2, opt) == clr
+            && get_pixel(image, x, y, x - 3, y + 10, opt) == clr
+            && get_pixel(image, x, y, x - 3, y + 10, opt) == clr
+            && get_pixel(image, x, y, x - 5, y + 18, opt) == clr {
+        return TextChar::Digit(3);
     }
     //println!("{x}x{y}");
     TextChar::Unknown
