@@ -80,7 +80,7 @@ enum TextChar {
 fn get_pixel(image:&DynamicImage, bx:u32, by:u32, x:u32, y:u32, opt:&Opt) -> image::Rgba<u8> {
     let clr = image.get_pixel(x, y);
     if opt.debug {
-        println!("{}x{} = {clr:?}", bx - x, by - x);
+        println!("{}x{} = {clr:?}", bx as i32 - x as i32, by as i32 - y as i32);
     }
     clr
 }
