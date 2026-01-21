@@ -157,7 +157,9 @@ fn get_info(image:&DynamicImage, opt:&Opt) -> DungeonInfo {
             loop {
                 match find_text_char(x, y, image) {
                     TextChar::Digit(v) => {
-                        //println!("{x}x{y} = {v}");
+                        if opt.debug {
+                            println!("{x}x{y} = {v}");
+                        }
                         current_number = if let Some(n) = current_number {
                             Some(n * 10 + v)
                         }
@@ -166,7 +168,9 @@ fn get_info(image:&DynamicImage, opt:&Opt) -> DungeonInfo {
                         };
                     },
                     TextChar::Comma => {
-                        //println!("{x}x{y} = ,");
+                        if opt.debug {
+                            println!("{x}x{y} = ,");
+                        }
                         x += 1;
                         if let Some(n) = current_number {
                             numbers.push(n);
@@ -174,6 +178,9 @@ fn get_info(image:&DynamicImage, opt:&Opt) -> DungeonInfo {
                         }
                     },
                     TextChar::Unknown => {
+                        if opt.debug {
+                            println!("{x}x{y} = UNKNOWN");
+                        }
                         if let Some(n) = current_number {
                             numbers.push(n);
                             current_number = None;
@@ -183,7 +190,9 @@ fn get_info(image:&DynamicImage, opt:&Opt) -> DungeonInfo {
                 }
                 x += 20;
             }
-           // println!("{numbers:?}");
+            if opt.debug {
+                println!("numbers = {numbers:?}");
+            }
 
             return DungeonInfo {
                 floor: "D1".to_owned(),
