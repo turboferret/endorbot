@@ -350,7 +350,7 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 let color2 = image.get_pixel(x as u16 + 4, y as u16 + 8);
                 let color3 = image.get_pixel(x as u16 - 4, y as u16 + 4);
                 //println!("{x}x{y} {color:?} {color2:?}");
-                if (*color == clr || *color == clr_faded)  && (*color2 == clr || *color2 == clr_faded) && (*color3 == clr || *color3 == clr_faded)  {
+                if (*color == clr || *color == clr_faded)  && (*color2 == clr || *color2 == clr_faded) && (*color3 != clr && *color3 != clr_faded)  {
                     println!("{x}x{y}");
                     true
                 }
