@@ -225,13 +225,13 @@ fn main() {
         last_action = action;
         match action {
             Action::CloseAd => {
-
+                std::thread::sleep(std::time::Duration::from_millis(200));
             },
             Action::GotoTown => {
-
+                std::thread::sleep(std::time::Duration::from_millis(200));
             },
             Action::GotoDungeon => {
-
+                std::thread::sleep(std::time::Duration::from_millis(200));
             },
             Action::FindFight(_move_direction, _target_tile) => {
             },

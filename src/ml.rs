@@ -16,7 +16,12 @@ pub struct Bitmap {
 }
 impl Bitmap {
     pub fn get_pixel(&self, x:u16, y:u16) -> &[u8; 3] {
+        #[cfg(not(debug_assertions))]
+        {
         self.pixels.iter().find_map(|(px, py, color)|if (x, y) == (*px, *py){Some(color)}else{None}).expect(&format!("{x}x{y} not found"))
+        }
+        #[cfg(debug_assertions)]
+        self.pixels.iter().find_map(|(px, py, color)|if (x, y) == (*px, *py){Some(color)}else{None}).unwrap_or_else(||{println!("missing ({x},{y})"); &[0u8, 0, 0]})
     }
     pub fn set_pixel(&mut self, x:u16, y:u16, color:[u8;3]) {
         self.pixels.push((x, y, color));
@@ -263,47 +268,80 @@ impl Tile {
 
 fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
     let (x_base, y_base) = if let Some(coords) = info.coordinates {
-        (coords.x - (TILE_COUNT.0 + 1 ) / 2, coords.y - (TILE_COUNT.1 + 1 ) / 2 + 1)
+        (coords.x as i32 - (TILE_COUNT.0 + 1 ) as i32 / 2, coords.y as i32 - (TILE_COUNT.1 + 1 ) as i32 / 2 + 1)
     }
     else {
         (0, 0)
     };
+    /*let (x_skip, y_skip, x_base, y_base) = if x_base < 0 || y_base < 0 {
+        println!("{} {}", if x_base < 0 {x_base.abs()as u32}else{0}, if y_base < 0{y_base.abs() as u32}else{0});
+        (if x_base < 0 {x_base.abs()as u32}else{0}, if y_base < 0{y_base.abs() as u32}else{0}, if x_base < 0{0}else{x_base}, if y_base < 0{0}else{y_base})
+//        panic!("{x_base}/{y_base} {info:?}");
+    }
+    else {
+        (0, 0, x_base, y_base)
+    };*/
+    //let (x_base, y_base) = (x_base as u32, y_base as u32);
     let mut tiles = Vec::new();
     for x_count in 0..TILE_COUNT.0 {
         for y_count in 0..TILE_COUNT.1 {
+            if (x_base + x_count as i32) < 0 || (y_base + y_count as i32) < 0 {
+                continue;
+            }
+//            println!("{x_base} {x_count} x {y_base} {y_count}");
             let x = TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 / 2;
             let y = TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 / 2;
+
+            //panic!("{x}x{y} {x_base} + {x_count} {y_base} + {y_count}");
 
             if pixel_color(image, (x, y).into(), TILE_UNEXPLORED) {
                 continue;
                 //println!("{}x{}", x_base + x_count, y_base + y_count);
             }
 
+          //  println!("{x}x{y} {}x{}", (x_base + x_count as i32) as u32, (y_base + y_count as i32) as u32);
+
             //println!("{x}x{} {}x{} {:?}", TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 1, x_base + x_count, y_base + y_count, image.get_pixel(x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 1));
 
            // println!("{x}x{y} {:?}", image.get_pixel(x, y));
+
+            fn is_wall(image:&Bitmap, x:u32, y:u32) -> bool {
+                let color = image.get_pixel(x as u16, y as u16);
+                let color2 = image.get_pixel(x as u16, y as u16 + 1);
+                color.iter().all(|v|*v >= 125) || color2.iter().all(|v|*v >= 125)
+            }
 
             let tile = Tile {
                 explored: !pixel_color(image, (x, y).into(), TILE_UNEXPLORED),
                 trap: false,
                 is_city: pixel_color(image, (x-2, y).into(), Rgb([244, 67, 54])),
-                position: Coords{x: x_base + x_count, y: y_base + y_count},
-                north_passable: !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + 1).into(), HEALTH_GREY),
-                east_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y).into(), HEALTH_GREY),
-                south_passable: !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4).into(), HEALTH_GREY),
-                west_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), HEALTH_GREY),
+                position: Coords{x: (x_base + x_count as i32) as u32, y: (y_base + y_count as i32) as u32},
+                north_passable: !is_wall(image, x, TILE_START.1 + y_count * TILE_SIZE.1 + 1),
+                //north_passable: !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + 1).into(), HEALTH_GREY) && !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + 1).into(), WHITE),
+                east_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y).into(), HEALTH_GREY) && !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y).into(), WHITE),
+                south_passable: !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4).into(), HEALTH_GREY) && !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4).into(), WHITE),
+                west_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), HEALTH_GREY) && !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), WHITE),
             };
+
+            if false && tile.position.x == 18 && tile.position.y == 4 {
+                println!("{tile:?}");
+                println!("west {}x{} {:?}", TILE_START.0 + x_count * TILE_SIZE.0 + 1, y, image.get_pixel((TILE_START.0 + x_count * TILE_SIZE.0 + 1) as u16, y as u16));
+                println!("east {}x{} {:?}", x, TILE_START.1 + y_count * TILE_SIZE.1 + 1, image.get_pixel(x as u16, (TILE_START.1 + y_count * TILE_SIZE.1 + 1) as u16));
+                println!("south {}x{} {:?}", TILE_START.0 as u16 + x_count as u16 * TILE_SIZE.0 as u16 + TILE_SIZE.0 as u16 - 4, y as u16, image.get_pixel(TILE_START.0 as u16 + x_count as u16 * TILE_SIZE.0 as u16 + TILE_SIZE.0 as u16 - 4, y as u16));
+            }
 
             if pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), TILE_UNEXPLORED) && !pixel_color(image, (x, y).into(), TILE_UNEXPLORED) {
                 continue;
             }
+
+            //println!("{x}x{y} = {}x{} n={} e={} s={} w={} ", tile.position.x, tile.position.y, tile.north_passable, tile.east_passable, tile.south_passable, tile.west_passable);
             
-            /*if tile.position.x == 16 && tile.position.y == 15 {
-                if tile.west_passable {
-                    println!("{tile:?} {}x{y} {:?} {x}x{y} {:?}", TILE_START.0 + x_count * TILE_SIZE.0 + 1, image.get_pixel(TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y), image.get_pixel(x, y));
+            if tile.position.x == 22 && tile.position.y == 14 {
+                if tile.north_passable {
+                    println!("{tile:?} {x}x{} {:?}", TILE_START.1 + y_count * TILE_SIZE.1 + 1, image.get_pixel(x as u16, (TILE_START.1 + y_count * TILE_SIZE.1 + 1) as u16));
                     panic!();
                 }
-            }*/
+            }
             //println!("{x}x{y} {tile:?}");
 
             /*if 806 == x && 686 == y {
@@ -316,6 +354,7 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
             tiles.push(tile);
         }
     }
+   // std::process::exit(0);
     tiles
 }
 
@@ -473,7 +512,7 @@ impl Dungeon {
             let mut out = Vec::with_capacity(4);
 
             // Norr: y - 1 (anpassa om ditt koordinatsystem är tvärtom)
-            if tile.north_passable {
+            if tile.north_passable && pos.y > 0 {
                 let n = Coords { x: pos.x, y: pos.y - 1 };
                     out.push((n, 1));
             }
@@ -488,14 +527,16 @@ impl Dungeon {
                     out.push((s, 1));
             }
             // Väst: x - 1
-            if tile.west_passable {
+            if tile.west_passable && pos.x > 0 {
                 let w = Coords { x: pos.x - 1, y: pos.y };
                     out.push((w, 1));
             }
             out
         };
         if let Some((path, _cost)) = astar(&current_tile.position, successors, |p|manhattan(*p, goal.position), |p|*p == goal.position) {
-            //println!("{path:?}");
+            let l = path.get(path.len()-2).unwrap();
+            println!("{path:?} {:?}", self.get_tile(l.x, l.y));
+            //println!("{:?}", self.get_current_tile());
             let pos = path.get(1).unwrap();
             Some(self.get_tile(pos.x, pos.y))
         }
@@ -513,7 +554,7 @@ impl Dungeon {
             //let Some(tile) = map.get(pos) else { return vec![]; };
             let tile = self.get_tile(pos.x, pos.y);
             let mut out = Vec::with_capacity(4);
-            if tile.north_passable {
+            if tile.north_passable && pos.y > 0 {
                 let n = Coords { x: pos.x, y: pos.y - 1 };
                 //if map.contains_key(&n) {
                     out.push((n, 1));
@@ -531,7 +572,7 @@ impl Dungeon {
                     out.push((s, 1));
                 //}
             }
-            if tile.west_passable {
+            if tile.west_passable && pos.x > 0 {
                 let w = Coords { x: pos.x - 1, y: pos.y };
                 //if map.contains_key(&w) {
                     out.push((w, 1));
