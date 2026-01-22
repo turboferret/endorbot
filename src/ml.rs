@@ -102,6 +102,7 @@ pub enum StateType {
     Main,
     City(bool),
     Dungeon,
+    TeleportToCity,
 }
 impl Into<State> for StateType {
     fn into(self) -> State {
@@ -352,7 +353,7 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 let color4 = image.get_pixel(x as u16 - 5, y as u16);
                 //println!("{x}x{y} {color:?} {color2:?} {color3:?}");
                 if (*color == clr || *color == clr_faded)  && (*color2 == clr || *color2 == clr_faded) && *color3 != clr && *color3 == clr_faded && *color4 == clr && *color4 == clr_faded  {
-                    println!("{x}x{y}");
+                    //println!("{x}x{y}");
                     true
                 }
                 else {
@@ -368,8 +369,8 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 let color3 = image.get_pixel(x as u16 + 5, y as u16);
                 let color4 = image.get_pixel(x as u16 - 5, y as u16);
                 //println!("{x}x{y} {color:?} {color2:?} {color3:?}");
-                if (*color == clr || *color == clr_faded)  && (*color2 == clr || *color2 == clr_faded) && (*color3 == clr || *color3 == clr_faded) && (*color4 == clr || *color4 == clr_faded)  {
-                    println!("{x}x{y}");
+                if (*color == clr || *color == clr_faded)  && *color2 != clr && *color2 != clr_faded && (*color3 == clr || *color3 == clr_faded) && (*color4 == clr || *color4 == clr_faded)  {
+                    //println!("{x}x{y}");
                     true
                 }
                 else {
@@ -377,14 +378,14 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 }
             }
 
-            is_go_up(image, x-2, y);
+            let is_go_up = is_go_up(image, x-2, y);
             let position = Coords{x: (x_base + x_count as i32) as u32, y: (y_base + y_count as i32) as u32};
             let tile = Tile {
                 explored: !pixel_color(image, (x, y).into(), TILE_UNEXPLORED),
                 trap: false,
                 visited: false,
                 is_city: is_city(image, x-2, y),
-                is_go_down: position != (15, 15).into() && is_go_down(image, x-2, y),
+                is_go_down: position != (15, 15).into() && !is_go_up && is_go_down(image, x-2, y),
                 //is_city: pixel_color(image, (x-2, y).into(), Rgb([244, 67, 54])),
                 position: position,
                 north_passable: !is_wall(image, x, TILE_START.1 + y_count * TILE_SIZE.1 + 1),
@@ -893,6 +894,12 @@ pub fn get_state(old_state:State, image:&Bitmap) -> Result<State, StateError> {
     if pixels_same_color(&image, [(918, 138).into(), (949, 138).into(), (919, 168).into(), (949, 168).into()].into_iter(), image::Rgb([202, 196, 208])) {
         return Ok(Into::<State>::into(StateType::Ad).merge(old_state));
     }
+    if pixels_same_color(&image, [(911, 940).into(), (155, 940).into(), (919, 168).into(), (949, 168).into()].into_iter(), image::Rgb([43, 41, 48])) {
+        return Ok(Into::<State>::into(StateType::TeleportToCity).merge(old_state));
+    }
+    if pixels_same_color(&image, [(918, 138).into(), (949, 138).into(), (919, 168).into(), (949, 168).into()].into_iter(), image::Rgb([202, 196, 208])) {
+        return Ok(Into::<State>::into(StateType::Ad).merge(old_state));
+    }
     if pixel_color(&image, (466, 1116).into(), image::Rgb([185, 207, 220])) && pixels_same_color(&image, [(690, 1306).into(), (717, 1326).into()].into_iter(), image::Rgb([56, 30, 114])) {
         return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(DungeonState::IdleChest, &image, old_state.get_position()))).merge(old_state));
     }
@@ -930,6 +937,9 @@ pub enum Action {
     GotoDungeon,
     GoDown,
 
+    CancelTeleportToCity,
+    TeleportToCity,
+
     FindFight(MoveDirection, (Tile, u32)),
     Fight,
     OpenChest,
@@ -943,6 +953,14 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
     match state.state_type {
         StateType::Ad => {
             Action::CloseAd
+        },
+        StateType::TeleportToCity => {
+            if state.dungeon.has_dead_character() {
+                Action::TeleportToCity
+            }
+            else {
+                Action::CancelTeleportToCity
+            }
         },
         StateType::Main => {
             Action::GotoTown
@@ -1085,6 +1103,12 @@ pub fn run_action(device:&str, opt:&Opt, state:&mut State, action:&Action) -> Op
         Action::GotoDungeon => {
             state.dungeon.clear_visited();
             adb_tap(device, opt, 890, 1928);
+        },
+        Action::CancelTeleportToCity => {
+            adb_tap(device, opt, 331, 1440);
+        },
+        Action::TeleportToCity => {
+            adb_tap(device, opt, 680, 1440);
         },
         Action::GoDown => {
             state.dungeon.tiles = Vec::new();

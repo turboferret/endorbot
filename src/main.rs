@@ -227,6 +227,11 @@ fn main() {
             Action::CloseAd => {
                 std::thread::sleep(std::time::Duration::from_millis(200));
             },
+            Action::TeleportToCity => {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            },
+            Action::CancelTeleportToCity => {
+            },
             Action::GotoTown => {
                 std::thread::sleep(std::time::Duration::from_millis(200));
             },
@@ -282,6 +287,8 @@ fn run(opt:&Opt, device:&str, old_state:State, last_action:Action) -> (State, Ac
     }
     match action {
         Action::CloseAd => println!("CloseAd"),
+        Action::CancelTeleportToCity => println!("CancelTeleportToCity"),
+        Action::TeleportToCity => println!("TeleportToCity"),
         Action::GotoTown => println!("GotoTown"),
         Action::GotoDungeon => println!("GotoDungeon"),
         Action::GoDown => println!("GoDown"),
