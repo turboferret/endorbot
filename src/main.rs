@@ -268,10 +268,15 @@ fn run(opt:&Opt, device:&str, old_state:State, last_action:Action) -> (State, Ac
     //println!("{:?} {:?}", img.get_info(), img.get_has_dead_characters());
     //img.save_with_format("cap.png", image::ImageFormat::Png).unwrap();
     let old_position = old_state.get_position();
-    let state = ml::get_state(old_state, &img).unwrap();
+    let mut state = ml::get_state(old_state, &img).unwrap();
     //println!("{:?}", state);
     let action = ml::determine_action(&state, last_action, old_position);
-    println!("{:?}", state.get_position());
+    if let Some(pos) = state.get_position() {
+        println!("position = {:?}", pos);
+    }
+    else {
+        println!("position = none");
+    }
     match action {
         Action::CloseAd => println!("CloseAd"),
         Action::GotoTown => println!("GotoTown"),
@@ -284,7 +289,9 @@ fn run(opt:&Opt, device:&str, old_state:State, last_action:Action) -> (State, Ac
     }
     //println!("{:?}", action);
     if !opt.no_action {
-        ml::run_action(device, opt, &state, &action);
+        if let Some(new_position) = ml::run_action(device, opt, &state, &action) {
+            state.set_position(new_position);
+        }
     }
     (state, action)
 }

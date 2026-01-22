@@ -155,6 +155,10 @@ impl State {
         }
         self.clone()
     }
+    
+    pub fn set_position(&mut self, new_position: Coords) {
+        self.dungeon.info.coordinates = Some(new_position);
+    }
 }
 
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
@@ -309,6 +313,8 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 let color = image.get_pixel(x as u16, y as u16);
                 let color2 = image.get_pixel(x as u16, y as u16 + 1);
                 color.iter().all(|v|*v >= 125) || color2.iter().all(|v|*v >= 125)
+                || color.iter().all(|v|*v >= 40 && *v <= 64)
+                || color2.iter().all(|v|*v >= 40 && *v <= 64)
             }
 
             fn is_city(image:&Bitmap, x:u32, y:u32) -> bool {
@@ -341,9 +347,9 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 //west_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), HEALTH_GREY) && !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), WHITE),
             };
 
-            /*if tile.position.x == 29 && tile.position.y == 13 {
-                println!("{tile:?}");
-            }*/
+            if tile.position.x == 18 && tile.position.y == 4 {
+               // println!("{tile:?} {}x{} {:?}", TILE_START.0 + x_count * TILE_SIZE.0 + 1, y, image.get_pixel((TILE_START.0 + x_count * TILE_SIZE.0 + 1) as u16, y as u16));
+            }
 
             if false && tile.position.x == 18 && tile.position.y == 4 {
                 println!("{tile:?}");
@@ -360,7 +366,7 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
             
             if tile.position.x == 22 && tile.position.y == 14 {
                 if tile.north_passable {
-                    println!("{tile:?} {x}x{} {:?}", TILE_START.1 + y_count * TILE_SIZE.1 + 1, image.get_pixel(x as u16, (TILE_START.1 + y_count * TILE_SIZE.1 + 1) as u16));
+                    println!("{tile:?} {}x{}", x, TILE_START.1 + y_count * TILE_SIZE.1 + 1);
                     panic!();
                 }
             }
@@ -539,12 +545,12 @@ impl Dungeon {
                     out.push((n, 1));
             }
             // Öst: x + 1
-            if tile.east_passable {
+            if tile.east_passable && pos.x < 29 {
                 let e = Coords { x: pos.x + 1, y: pos.y };
                     out.push((e, 1));
             }
             // Syd: y + 1
-            if tile.south_passable {
+            if tile.south_passable && pos.y < 29 {
                 let s = Coords { x: pos.x, y: pos.y + 1 };
                     out.push((s, 1));
             }
@@ -923,7 +929,7 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
                     Action::OpenChest
                 },
                 DungeonState::Fight(_enemy) => {
-                    if dungeon.has_low_character() || dungeon.has_dead_character() {
+                    if false && dungeon.has_low_character() || dungeon.has_dead_character() {
                         if let Some(city_tile) = dungeon.get_city_tile() {
                             if let Some(next_tile) = dungeon.get_next_tile_to_goal(dungeon.get_current_tile(), city_tile) {
                                 println!("This tile {:?}", dungeon.get_current_tile());
@@ -956,7 +962,7 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
     }
 }
 
-pub fn run_action(device:&str, opt:&Opt, _state:&State, action:&Action) -> Option<Coords> {
+pub fn run_action(device:&str, opt:&Opt, state:&State, action:&Action) -> Option<Coords> {
     match action {
         Action::CloseAd => {
             adb_tap(device, opt, 935, 153);
@@ -969,6 +975,7 @@ pub fn run_action(device:&str, opt:&Opt, _state:&State, action:&Action) -> Optio
         },
         Action::FindFight(move_direction, _target_tile) => {
             adb_move(device, opt, move_direction);
+            return Some(state.get_position().unwrap().move_direction(*move_direction));
         },
         Action::Fight => {
             adb_tap(device, opt, 711, 1308);
@@ -982,6 +989,7 @@ pub fn run_action(device:&str, opt:&Opt, _state:&State, action:&Action) -> Optio
             }
             else {
                 adb_move(device, opt, move_direction);
+                return Some(state.get_position().unwrap().move_direction(*move_direction));
             }
         },
         Action::Resurrect => {
