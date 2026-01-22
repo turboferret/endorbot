@@ -787,9 +787,10 @@ pub fn get_state(old_state:State, image:&Bitmap) -> Result<State, StateError> {
     if pixel_color(&image, (466, 1116).into(), image::Rgb([185, 207, 220])) && pixels_same_color(&image, [(690, 1306).into(), (717, 1326).into()].into_iter(), image::Rgb([56, 30, 114])) {
         return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(DungeonState::IdleChest, &image, old_state.get_position()))).merge(old_state));
     }
-    if (pixel_either_color(&image, (827, 1306).into(), [FIGHT, image::Rgb([192, 172, 241])].into_iter()) ||
+    if (image.get_info().coordinates.is_none() &&
+        (pixel_either_color(&image, (827, 1306).into(), [FIGHT, image::Rgb([192, 172, 241])].into_iter()) ||
         pixel_either_color(&image, (827, 1260).into(), [FIGHT, image::Rgb([192, 172, 241])].into_iter())) &&
-        !pixel_color(&image, (671, 1309).into(), image::Rgb([56, 30, 114])) {
+        !pixel_color(&image, (671, 1309).into(), image::Rgb([56, 30, 114]))) {
         return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(DungeonState::Fight(get_enemy(&image)), &image, old_state.get_position()))).merge(old_state));
     }
     if pixel_color(&image, (979, 1083).into(), IDLE_1) && pixel_color(&image, (1023, 1116).into(), IDLE_1) {
