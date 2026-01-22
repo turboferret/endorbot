@@ -886,7 +886,7 @@ pub enum Action {
     GotoTown,
     GotoDungeon,
 
-    FindFight(MoveDirection, Tile),
+    FindFight(MoveDirection, (Tile, u32)),
     Fight,
     OpenChest,
 
@@ -941,39 +941,28 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
                             Action::ReturnToTown(false, tile.direction_from(dungeon.get_current_tile()))
                         }
                     }
-                    else if let Some(down_tile) = dungeon.get_go_down_tile() {
-                        println!("Found go down tile");
-                        if let Some(next_tile) = dungeon.get_next_tile_to_goal(dungeon.get_current_tile(), down_tile) {
-                            Action::FindFight(next_tile.direction_from(dungeon.get_current_tile()), down_tile)
-                        }
-                        else {
-                            println!("Found no path to {:?}", down_tile);
-                            let tile = dungeon.get_random_tile_from_current(None, RandomTarget::GoDown);
-                            Action::FindFight(tile.direction_from(dungeon.get_current_tile()), tile)
-                        }
-                    }
                     else {
-                        let tile = if let Action::FindFight(_move_direction, target_tile) = last_action {
+                        let (tile, ticks_same_target) = if let Action::FindFight(_move_direction, (target_tile, ticks_same_target)) = last_action {
                             if target_tile.position == dungeon.get_current_tile().position {
                                 println!("looking for unexplored tile");
-                                dungeon.get_unexplored_tile(old_position)
+                                (dungeon.get_unexplored_tile(old_position), 1)
                             }
                             else {
                                 println!("using last target tile");
-                                target_tile
+                                (target_tile, ticks_same_target + 1)
                             }
                         }
                         else {
                             println!("looking for unexplored tile");
-                            dungeon.get_unexplored_tile(old_position)
+                            (dungeon.get_unexplored_tile(old_position), 1)
                         };
                         if let Some(next_tile) = dungeon.get_next_tile_to_goal(dungeon.get_current_tile(), tile) {
-                            Action::FindFight(next_tile.direction_from(dungeon.get_current_tile()), tile)
+                            Action::FindFight(next_tile.direction_from(dungeon.get_current_tile()), (tile, ticks_same_target))
                         }
                         else {
                             println!("Found no path to {:?}", tile);
                             let tile = dungeon.get_random_tile_from_current(None, RandomTarget::Unexplored);
-                            Action::FindFight(tile.direction_from(dungeon.get_current_tile()), tile)
+                            Action::FindFight(tile.direction_from(dungeon.get_current_tile()), (tile, 0))
                         }
                     }
                 },
