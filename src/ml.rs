@@ -874,7 +874,7 @@ fn pixels_color(image: &Bitmap, pixels:impl Iterator<Item = Pixel>) -> bool {
 fn pixels_same_color(image: &Bitmap, pixels:impl Iterator<Item = Coords>, color: Rgb<u8>) -> bool {
     pixels.into_iter().all(|coords|{
         write_coord_to_file(coords.x, coords.y);
-        //let c = image.get_pixel(coords.x, coords.y);
+        //let c = image.get_pixel(coords.x as u16, coords.y as u16);
         //println!("{}x{} {:?} {:?}", coords.x, coords.y, color, c);
         *image.get_pixel(coords.x as u16, coords.y as u16) == color.0
     })
@@ -894,7 +894,7 @@ pub fn get_state(old_state:State, image:&Bitmap) -> Result<State, StateError> {
     if pixels_same_color(&image, [(918, 138).into(), (949, 138).into(), (919, 168).into(), (949, 168).into()].into_iter(), image::Rgb([202, 196, 208])) {
         return Ok(Into::<State>::into(StateType::Ad).merge(old_state));
     }
-    if pixels_same_color(&image, [(911, 940).into(), (155, 940).into(), (919, 168).into(), (949, 168).into()].into_iter(), image::Rgb([43, 41, 48])) {
+    if pixels_same_color(&image, [(911, 940).into(), (155, 940).into()].into_iter(), image::Rgb([43, 41, 48])) {
         return Ok(Into::<State>::into(StateType::TeleportToCity).merge(old_state));
     }
     if pixels_same_color(&image, [(918, 138).into(), (949, 138).into(), (919, 168).into(), (949, 168).into()].into_iter(), image::Rgb([202, 196, 208])) {
