@@ -233,6 +233,9 @@ fn main() {
             Action::GotoDungeon => {
                 std::thread::sleep(std::time::Duration::from_millis(200));
             },
+            Action::GoDown => {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
             Action::FindFight(_move_direction, _target_tile) => {
             },
             Action::Fight => {
@@ -258,7 +261,7 @@ fn main() {
         if step {
             break;
         }
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        std::thread::sleep(std::time::Duration::from_millis(150));
     }
 }
 
@@ -281,6 +284,7 @@ fn run(opt:&Opt, device:&str, old_state:State, last_action:Action) -> (State, Ac
         Action::CloseAd => println!("CloseAd"),
         Action::GotoTown => println!("GotoTown"),
         Action::GotoDungeon => println!("GotoDungeon"),
+        Action::GoDown => println!("GoDown"),
         Action::FindFight(move_direction, (tile, ticks_same_target)) => println!("FindFight {move_direction:?} target = {:?} ticks = {ticks_same_target}", tile.get_position()),
         Action::Fight => println!("Fight"),
         Action::OpenChest => println!("OpenChest"),
@@ -289,7 +293,7 @@ fn run(opt:&Opt, device:&str, old_state:State, last_action:Action) -> (State, Ac
     }
     //println!("{:?}", action);
     if !opt.no_action {
-        if let Some(new_position) = ml::run_action(device, opt, &state, &action) {
+        if let Some(new_position) = ml::run_action(device, opt, &mut state, &action) {
             state.set_position(new_position);
         }
     }

@@ -146,6 +146,7 @@ impl State {
                 if down_tile.is_none() {
                     new_tile.is_go_down = tile.is_go_down || new_tile.is_go_down;
                 }
+                new_tile.visited = tile.visited || new_tile.visited;
             }
             else {
                 tile.is_city = if city_tile.is_none() {
@@ -252,6 +253,7 @@ pub struct Tile {
     trap: bool,
     is_city: bool,
     is_go_down: bool,
+    visited: bool,
     position: Coords,
     north_passable: bool,
     east_passable: bool,
@@ -346,8 +348,10 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 let clr_faded = [165u8, 118, 66];
                 let color = image.get_pixel(x as u16, y as u16);
                 let color2 = image.get_pixel(x as u16 + 4, y as u16 + 8);
-                if (*color == clr || *color == clr_faded)  && *color2 == clr && *color2 == clr_faded  {
-                    //println!("{x}x{y}");
+                let color3 = image.get_pixel(x as u16 - 4, y as u16 + 4);
+                //println!("{x}x{y} {color:?} {color2:?}");
+                if (*color == clr || *color == clr_faded)  && (*color2 == clr || *color2 == clr_faded) && (*color3 == clr || *color3 == clr_faded)  {
+                    println!("{x}x{y}");
                     true
                 }
                 else {
@@ -358,6 +362,7 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
             let tile = Tile {
                 explored: !pixel_color(image, (x, y).into(), TILE_UNEXPLORED),
                 trap: false,
+                visited: false,
                 is_city: is_city(image, x-2, y),
                 is_go_down: is_go_down(image, x-2, y),
                 //is_city: pixel_color(image, (x-2, y).into(), Rgb([244, 67, 54])),
@@ -439,7 +444,7 @@ impl Dungeon {
     }
 
     pub fn new(state:DungeonState, image:&Bitmap, old_position:Option<Coords>) -> Self {
-        let state = Self {
+        let mut state = Self {
             state,
             characters: get_characters(image),
             info: if let Some(p) = image.info.coordinates {
@@ -453,6 +458,9 @@ impl Dungeon {
             },
             tiles: get_tiles(&image.info, image),
         };
+        if let Some(pos) = state.info.coordinates {
+            state.set_tile_visited(pos.x, pos.y);
+        }
         state
     }
 
@@ -470,6 +478,7 @@ impl Dungeon {
             trap: false,
             is_city: false,
             is_go_down: false,
+            visited: false,
             position: Coords { x, y },
             north_passable: true,
             east_passable: true,
@@ -614,7 +623,7 @@ impl Dungeon {
         }
     }
 
-    fn get_closest_unexplored_tile(&self, current_tile:Tile) -> Option<Tile> {
+    fn get_closest_unvisited_tile(&self, current_tile:Tile) -> Option<Tile> {
         use pathfinding::prelude::astar;
         //let map: HashMap<Coords, &Tile> =
             //self.tiles.iter().map(|t| (t.position, t)).collect();
@@ -652,7 +661,7 @@ impl Dungeon {
         };
 
         let is_goal = |pos: &Coords| {
-            !self.get_tile(pos.x, pos.y).explored
+            !self.get_tile(pos.x, pos.y).visited
             //map.get(pos).map_or(false, |t| !t.explored)
         };
 
@@ -669,14 +678,14 @@ impl Dungeon {
             }
         }
         else {
-            println!("found no unexplored tile");
+            println!("found no ununvisited tile");
         }
         None
     }
     
     fn get_unexplored_tile(&self, old_position: Option<Coords>) -> Tile {
         let me = self.get_current_tile();
-        if let Some(tile) = self.get_closest_unexplored_tile(me) {
+        if let Some(tile) = self.get_closest_unvisited_tile(me) {
             return tile;
         }
         if me.west_passable && me.position.x > 0 {
@@ -731,6 +740,20 @@ impl Dungeon {
             }
         }
         false
+    }
+    
+    fn clear_visited(&mut self) {
+        for tile in self.tiles.iter_mut() {
+            tile.visited = false;
+        }
+    }
+    
+    fn set_tile_visited(&mut self, x: u32, y: u32) {
+        for tile in self.tiles.iter_mut() {
+            if tile.position.x == x && tile.position.y == y {
+                tile.visited = true;
+            }
+        }
     }
 }
 
@@ -885,6 +908,7 @@ pub enum Action {
     CloseAd, 
     GotoTown,
     GotoDungeon,
+    GoDown,
 
     FindFight(MoveDirection, (Tile, u32)),
     Fight,
@@ -915,7 +939,7 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
             let dungeon = &state.dungeon;
             match dungeon.state {
                 DungeonState::Idle(on_city_tile) => {
-                    if dungeon.has_low_character() || dungeon.has_dead_character() {
+                    if dungeon.has_dead_character() {
                         if on_city_tile {
                             Action::ReturnToTown(true, MoveDirection::East)
                         }
@@ -942,6 +966,12 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
                         }
                     }
                     else {
+                        println!("{:?}", dungeon.get_current_tile());
+                        if let Some(go_down_tile) = dungeon.get_go_down_tile() {
+                            if go_down_tile.position == dungeon.get_current_tile().position {
+                                return Action::GoDown;
+                            }
+                        }
                         let (tile, ticks_same_target) = if let Action::FindFight(_move_direction, (target_tile, ticks_same_target)) = last_action {
                             if target_tile.position == dungeon.get_current_tile().position {
                                 println!("looking for unexplored tile");
@@ -956,6 +986,27 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
                             println!("looking for unexplored tile");
                             (dungeon.get_unexplored_tile(old_position), 1)
                         };
+
+                        let (tile, ticks_same_target) = if ticks_same_target > 30 {
+                            println!("Too many ticks spent on moving to target");
+                            (dungeon.get_unexplored_tile(old_position), 1)
+                        }
+                        else {
+                            (tile, ticks_same_target)
+                        };
+
+                        let (tile, ticks_same_target) = if let Some(go_down_tile) = dungeon.get_go_down_tile() {
+                            if go_down_tile.position != tile.position {
+                                (go_down_tile, 1)
+                            }
+                            else {
+                                (tile, ticks_same_target)
+                            }
+                        }
+                        else {
+                            (tile, ticks_same_target)
+                        };
+
                         if let Some(next_tile) = dungeon.get_next_tile_to_goal(dungeon.get_current_tile(), tile) {
                             Action::FindFight(next_tile.direction_from(dungeon.get_current_tile()), (tile, ticks_same_target))
                         }
@@ -1003,7 +1054,7 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
     }
 }
 
-pub fn run_action(device:&str, opt:&Opt, state:&State, action:&Action) -> Option<Coords> {
+pub fn run_action(device:&str, opt:&Opt, state:&mut State, action:&Action) -> Option<Coords> {
     match action {
         Action::CloseAd => {
             adb_tap(device, opt, 935, 153);
@@ -1012,7 +1063,12 @@ pub fn run_action(device:&str, opt:&Opt, state:&State, action:&Action) -> Option
 
         },
         Action::GotoDungeon => {
+            state.dungeon.clear_visited();
             adb_tap(device, opt, 890, 1928);
+        },
+        Action::GoDown => {
+            state.dungeon.tiles = Vec::new();
+            adb_tap(device, opt, 715, 1316);
         },
         Action::FindFight(move_direction, _target_tile) => {
             adb_move(device, opt, move_direction);
