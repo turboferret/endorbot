@@ -188,7 +188,7 @@ fn find_text_char(x:u32, y:u32, image:&DynamicImage, opt:&Opt) -> TextChar {
         println!("\tCheck 4");
     }
     if get_pixel(image, x, y, x + 2, y + 1, opt) == clr
-        && get_pixel(image, x, y, x - 2, y + 2, opt) != clr
+        && (get_pixel(image, x, y, x - 2, y + 2, opt) != clr || get_pixel(image, x, y, x - 4, y + 2, opt) != clr)
         && get_pixel(image, x, y, x - 1, y + 11, opt) != clr {
         return TextChar::Digit(4);
     }

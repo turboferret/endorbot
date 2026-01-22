@@ -137,15 +137,25 @@ impl State {
 
     pub fn merge(&mut self, old:State) -> State {
         let city_tile = self.dungeon.tiles.iter().find(|tile|tile.is_city).cloned();
+        let down_tile = self.dungeon.tiles.iter().find(|tile|tile.is_go_down).cloned();
         for mut tile in old.dungeon.tiles {
             if let Some(new_tile) = self.dungeon.tiles.iter_mut().find(|v|v.position == tile.position) {
                 if city_tile.is_none() {
                     new_tile.is_city = tile.is_city || new_tile.is_city;
                 }
+                if down_tile.is_none() {
+                    new_tile.is_go_down = tile.is_go_down || new_tile.is_go_down;
+                }
             }
             else {
                 tile.is_city = if city_tile.is_none() {
                     tile.is_city 
+                }
+                else {
+                    false
+                };
+                tile.is_go_down = if down_tile.is_none() {
+                    tile.is_go_down
                 }
                 else {
                     false
@@ -241,6 +251,7 @@ pub struct Tile {
     explored: bool,
     trap: bool,
     is_city: bool,
+    is_go_down: bool,
     position: Coords,
     north_passable: bool,
     east_passable: bool,
@@ -330,11 +341,25 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                     false
                 }
             }
+            fn is_go_down(image:&Bitmap, x:u32, y:u32) -> bool {
+                let clr = [244u8, 67, 54];
+                let clr_faded = [165u8, 118, 66];
+                let color = image.get_pixel(x as u16, y as u16);
+                let color2 = image.get_pixel(x as u16 + 4, y as u16 + 8);
+                if (*color == clr || *color == clr_faded)  && *color2 == clr && *color2 == clr_faded  {
+                    //println!("{x}x{y}");
+                    true
+                }
+                else {
+                    false
+                }
+            }
 
             let tile = Tile {
                 explored: !pixel_color(image, (x, y).into(), TILE_UNEXPLORED),
                 trap: false,
                 is_city: is_city(image, x-2, y),
+                is_go_down: is_go_down(image, x-2, y),
                 //is_city: pixel_color(image, (x-2, y).into(), Rgb([244, 67, 54])),
                 position: Coords{x: (x_base + x_count as i32) as u32, y: (y_base + y_count as i32) as u32},
                 north_passable: !is_wall(image, x, TILE_START.1 + y_count * TILE_SIZE.1 + 1),
@@ -388,6 +413,7 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
 
 #[derive(Debug)]
 enum RandomTarget {
+    GoDown,
     City,
     Unexplored,
 }
@@ -443,6 +469,7 @@ impl Dungeon {
             explored: false,
             trap: false,
             is_city: false,
+            is_go_down: false,
             position: Coords { x, y },
             north_passable: true,
             east_passable: true,
@@ -460,30 +487,39 @@ impl Dungeon {
         None
     }
 
+    fn get_go_down_tile(&self) -> Option<Tile> {
+        for tile in &self.tiles {
+            if tile.is_go_down {
+                return Some(*tile);
+            }
+        }
+        None
+    }
+
     fn get_random_tile_from_current(&self, avoid_position:Option<Coords>, random_target:RandomTarget) -> Tile {
         let current = self.get_current_tile();
         let mut tiles = Vec::new();
         if current.north_passable {
             let tile = self.get_tile(current.position.x, current.position.y - 1);
-            if !tile.is_city {
+            if !tile.is_city && !tile.is_go_down {
                 tiles.push(tile);
             }
         }
         if current.east_passable {
             let tile = self.get_tile(current.position.x + 1, current.position.y);
-            if !tile.is_city {
+            if !tile.is_city && !tile.is_go_down {
                 tiles.push(tile);
             }
         }
         if current.south_passable {
             let tile = self.get_tile(current.position.x, current.position.y + 1);
-            if !tile.is_city {
+            if !tile.is_city && !tile.is_go_down {
                 tiles.push(tile);
             }
         }
         if current.west_passable {
             let tile = self.get_tile(current.position.x - 1, current.position.y);
-            if !tile.is_city {
+            if !tile.is_city && !tile.is_go_down {
                 tiles.push(tile);
             }
         }
@@ -499,6 +535,11 @@ impl Dungeon {
         }
         if tiles.len() > 1 {
             match random_target {
+                RandomTarget::GoDown => {
+                    if let Some(city_tile) = tiles.iter().find(|tile|tile.is_go_down) {
+                        tiles = vec![*city_tile];
+                    }
+                },
                 RandomTarget::City => {
                     if let Some(city_tile) = tiles.iter().find(|tile|tile.is_city) {
                         tiles = vec![*city_tile];
@@ -898,6 +939,17 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
                             println!("Don't know where city tile is");
                             let tile = dungeon.get_random_tile_from_current(None, RandomTarget::City);
                             Action::ReturnToTown(false, tile.direction_from(dungeon.get_current_tile()))
+                        }
+                    }
+                    else if let Some(down_tile) = dungeon.get_go_down_tile() {
+                        println!("Found go down tile");
+                        if let Some(next_tile) = dungeon.get_next_tile_to_goal(dungeon.get_current_tile(), down_tile) {
+                            Action::FindFight(next_tile.direction_from(dungeon.get_current_tile()), down_tile)
+                        }
+                        else {
+                            println!("Found no path to {:?}", down_tile);
+                            let tile = dungeon.get_random_tile_from_current(None, RandomTarget::GoDown);
+                            Action::FindFight(tile.direction_from(dungeon.get_current_tile()), tile)
                         }
                     }
                     else {
