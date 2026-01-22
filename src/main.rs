@@ -279,7 +279,7 @@ fn run(opt:&Opt, device:&str, old_state:State, last_action:Action) -> (State, Ac
         Action::FindFight(move_direction, tile) => println!("FindFight {move_direction:?} target = {:?}", tile.get_position()),
         Action::Fight => println!("Fight"),
         Action::OpenChest => println!("OpenChest"),
-        Action::ReturnToTown(_, move_direction) => println!("ReturnToTown {move_direction:?}"),
+        Action::ReturnToTown(on_city_tile, move_direction) => println!("ReturnToTown {on_city_tile} {move_direction:?}"),
         Action::Resurrect => println!("Resurrect"),
     }
     //println!("{:?}", action);

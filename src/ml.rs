@@ -311,10 +311,25 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 color.iter().all(|v|*v >= 125) || color2.iter().all(|v|*v >= 125)
             }
 
+            fn is_city(image:&Bitmap, x:u32, y:u32) -> bool {
+                let clr = [244u8, 67, 54];
+                let clr_faded = [165u8, 118, 66];
+                let color = image.get_pixel(x as u16, y as u16);
+                let color2 = image.get_pixel(x as u16 + 4, y as u16 + 8);
+                if (*color == clr || *color == clr_faded)  && *color2 != clr && *color2 != clr_faded  {
+                    //println!("{x}x{y}");
+                    true
+                }
+                else {
+                    false
+                }
+            }
+
             let tile = Tile {
                 explored: !pixel_color(image, (x, y).into(), TILE_UNEXPLORED),
                 trap: false,
-                is_city: pixel_color(image, (x-2, y).into(), Rgb([244, 67, 54])),
+                is_city: is_city(image, x-2, y),
+                //is_city: pixel_color(image, (x-2, y).into(), Rgb([244, 67, 54])),
                 position: Coords{x: (x_base + x_count as i32) as u32, y: (y_base + y_count as i32) as u32},
                 north_passable: !is_wall(image, x, TILE_START.1 + y_count * TILE_SIZE.1 + 1),
                 east_passable: !is_wall(image, TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y),
@@ -325,6 +340,10 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 //south_passable: !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4).into(), HEALTH_GREY) && !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4).into(), WHITE),
                 //west_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), HEALTH_GREY) && !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), WHITE),
             };
+
+            /*if tile.position.x == 29 && tile.position.y == 13 {
+                println!("{tile:?}");
+            }*/
 
             if false && tile.position.x == 18 && tile.position.y == 4 {
                 println!("{tile:?}");
@@ -794,7 +813,8 @@ pub fn get_state(old_state:State, image:&Bitmap) -> Result<State, StateError> {
         return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(DungeonState::Fight(get_enemy(&image)), &image, old_state.get_position()))).merge(old_state));
     }
     if pixel_color(&image, (979, 1083).into(), IDLE_1) && pixel_color(&image, (1023, 1116).into(), IDLE_1) {
-        let on_city_tile = pixel_color(&image, (716, 1279).into(), FIGHT);
+        let on_city_tile = pixel_color(&image, (716, 1279).into(), FIGHT)
+            && !pixels_same_color(image, [(642, 1201).into(), (608, 1307).into(), (609, 1329).into()].into_iter(), image::Rgb([56, 30, 114]));
         return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(DungeonState::Idle(on_city_tile), &image, old_state.get_position()))).merge(old_state));
     }
     if pixels_color(&image, [(752, 1926, CITY_1).into(), (75, 1512, CITY_2).into()].into_iter()) {
