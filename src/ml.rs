@@ -538,7 +538,7 @@ impl Dungeon {
         };
         if let Some((path, _cost)) = astar(&current_tile.position, successors, |p|manhattan(*p, goal.position), |p|*p == goal.position) {
             let l = path.get(path.len()-2).unwrap();
-            println!("{path:?} {:?}", self.get_tile(l.x, l.y));
+            //println!("{path:?} {:?}", self.get_tile(l.x, l.y));
             //println!("{:?}", self.get_current_tile());
             let pos = path.get(1).unwrap();
             Some(self.get_tile(pos.x, pos.y))
