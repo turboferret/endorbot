@@ -317,10 +317,13 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 is_city: pixel_color(image, (x-2, y).into(), Rgb([244, 67, 54])),
                 position: Coords{x: (x_base + x_count as i32) as u32, y: (y_base + y_count as i32) as u32},
                 north_passable: !is_wall(image, x, TILE_START.1 + y_count * TILE_SIZE.1 + 1),
+                east_passable: !is_wall(image, TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y),
+                south_passable: !is_wall(image, x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4),
+                west_passable: !is_wall(image, TILE_START.0 + x_count * TILE_SIZE.0 + 1, y),
                 //north_passable: !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + 1).into(), HEALTH_GREY) && !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + 1).into(), WHITE),
-                east_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y).into(), HEALTH_GREY) && !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y).into(), WHITE),
-                south_passable: !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4).into(), HEALTH_GREY) && !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4).into(), WHITE),
-                west_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), HEALTH_GREY) && !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), WHITE),
+                //east_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y).into(), HEALTH_GREY) && !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y).into(), WHITE),
+                //south_passable: !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4).into(), HEALTH_GREY) && !pixel_color(image, (x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4).into(), WHITE),
+                //west_passable: !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), HEALTH_GREY) && !pixel_color(image, (TILE_START.0 + x_count * TILE_SIZE.0 + 1, y).into(), WHITE),
             };
 
             if false && tile.position.x == 18 && tile.position.y == 4 {
