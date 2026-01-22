@@ -348,9 +348,10 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 let clr_faded = [165u8, 118, 66];
                 let color = image.get_pixel(x as u16, y as u16);
                 let color2 = image.get_pixel(x as u16 + 4, y as u16 + 8);
-                let color3 = image.get_pixel(x as u16 - 4, y as u16 + 4);
-                //println!("{x}x{y} {color:?} {color2:?}");
-                if (*color == clr || *color == clr_faded)  && (*color2 == clr || *color2 == clr_faded) && (*color3 != clr && *color3 != clr_faded)  {
+                let color3 = image.get_pixel(x as u16 + 5, y as u16);
+                let color4 = image.get_pixel(x as u16 - 5, y as u16);
+                //println!("{x}x{y} {color:?} {color2:?} {color3:?}");
+                if (*color == clr || *color == clr_faded)  && (*color2 == clr || *color2 == clr_faded) && *color3 != clr && *color3 == clr_faded && *color4 == clr && *color4 == clr_faded  {
                     println!("{x}x{y}");
                     true
                 }
@@ -359,14 +360,33 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 }
             }
 
+            fn is_go_up(image:&Bitmap, x:u32, y:u32) -> bool {
+                let clr = [244u8, 67, 54];
+                let clr_faded = [165u8, 118, 66];
+                let color = image.get_pixel(x as u16, y as u16);
+                let color2 = image.get_pixel(x as u16 + 4, y as u16 + 8);
+                let color3 = image.get_pixel(x as u16 + 5, y as u16);
+                let color4 = image.get_pixel(x as u16 - 5, y as u16);
+                //println!("{x}x{y} {color:?} {color2:?} {color3:?}");
+                if (*color == clr || *color == clr_faded)  && (*color2 == clr || *color2 == clr_faded) && (*color3 == clr || *color3 == clr_faded) && (*color4 == clr || *color4 == clr_faded)  {
+                    println!("{x}x{y}");
+                    true
+                }
+                else {
+                    false
+                }
+            }
+
+            is_go_up(image, x-2, y);
+            let position = Coords{x: (x_base + x_count as i32) as u32, y: (y_base + y_count as i32) as u32};
             let tile = Tile {
                 explored: !pixel_color(image, (x, y).into(), TILE_UNEXPLORED),
                 trap: false,
                 visited: false,
                 is_city: is_city(image, x-2, y),
-                is_go_down: is_go_down(image, x-2, y),
+                is_go_down: position != (15, 15).into() && is_go_down(image, x-2, y),
                 //is_city: pixel_color(image, (x-2, y).into(), Rgb([244, 67, 54])),
-                position: Coords{x: (x_base + x_count as i32) as u32, y: (y_base + y_count as i32) as u32},
+                position: position,
                 north_passable: !is_wall(image, x, TILE_START.1 + y_count * TILE_SIZE.1 + 1),
                 east_passable: !is_wall(image, TILE_START.0 + x_count * TILE_SIZE.0 + TILE_SIZE.0 - 4, y),
                 south_passable: !is_wall(image, x, TILE_START.1 + y_count * TILE_SIZE.1 + TILE_SIZE.1 - 4),
