@@ -244,11 +244,12 @@ fn main() {
             Action::FindFight(_move_direction, _target_tile) => {
             },
             Action::Fight => {
-                std::thread::sleep(std::time::Duration::from_millis(200));
+                std::thread::sleep(std::time::Duration::from_millis(300));
             //  break;
             },
             Action::OpenChest => {
-
+            },
+            Action::OpenChestMagical => {
             },
             Action::ReturnToTown(_on_city_tile, _move_direction) => {
             },
@@ -295,6 +296,7 @@ fn run(opt:&Opt, device:&str, old_state:State, last_action:Action) -> (State, Ac
         Action::FindFight(move_direction, (tile, ticks_same_target)) => println!("FindFight {move_direction:?} target = {:?} ticks = {ticks_same_target}", tile.get_position()),
         Action::Fight => println!("Fight"),
         Action::OpenChest => println!("OpenChest"),
+        Action::OpenChestMagical => println!("OpenChestMagical"),
         Action::ReturnToTown(on_city_tile, move_direction) => println!("ReturnToTown {on_city_tile} {move_direction:?}"),
         Action::Resurrect => println!("Resurrect"),
     }

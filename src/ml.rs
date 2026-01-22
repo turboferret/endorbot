@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, io::Write, process::{Command, Stdio}};
+use std::{char::ToLowercase, collections::{HashMap, HashSet}, io::Write, process::{Command, Stdio}};
 
 use image::{DynamicImage, EncodableLayout, GenericImage, GenericImageView, Rgb, Rgba};
 use ocrs::{ImageSource, OcrEngine, OcrEngineParams};
@@ -782,6 +782,7 @@ impl Dungeon {
 pub enum DungeonState {
     Idle(bool),
     IdleChest,
+    IdleChestMagical,
     Fight(Enemy),
 }
 
@@ -884,6 +885,20 @@ fn pixel_color(image: &Bitmap, coords:Coords, color: Rgb<u8>) -> bool {
     //println!("{}x{} {:?} {:?}", coords.x, coords.y, color, image.get_pixel(coords.x, coords.y));
     *image.get_pixel(coords.x as u16, coords.y as u16) == color.0
 }
+fn pixel_color_tolerance(image: &Bitmap, coords:Coords, color: Rgb<u8>, tolerance:u8) -> bool {
+    write_coord_to_file(coords.x, coords.y);
+    fn diff(a:u8, b:u8) -> u8 {
+        if a > b {
+            a - b
+        }
+        else {
+            b - a
+        }
+    }
+    //println!("{}x{} {:?} {:?}", coords.x, coords.y, color, image.get_pixel(coords.x, coords.y));
+    let clr = *image.get_pixel(coords.x as u16, coords.y as u16);
+    diff(clr[0], color.0[0]) <= tolerance && diff(clr[1], color.0[1]) <= tolerance && diff(clr[2], color.0[2]) <= tolerance
+}
 fn pixel_either_color(image: &Bitmap, coords:Coords, colors: impl Iterator<Item = Rgb<u8>>) -> bool {
     write_coord_to_file(coords.x, coords.y);
     let color = image.get_pixel(coords.x as u16, coords.y as u16);
@@ -900,8 +915,11 @@ pub fn get_state(old_state:State, image:&Bitmap) -> Result<State, StateError> {
     if pixels_same_color(&image, [(918, 138).into(), (949, 138).into(), (919, 168).into(), (949, 168).into()].into_iter(), image::Rgb([202, 196, 208])) {
         return Ok(Into::<State>::into(StateType::Ad).merge(old_state));
     }
-    if pixel_color(&image, (466, 1116).into(), image::Rgb([185, 207, 220])) && pixels_same_color(&image, [(690, 1306).into(), (717, 1326).into()].into_iter(), image::Rgb([56, 30, 114])) {
+    if pixel_color_tolerance(&image, (466, 1116).into(), image::Rgb([185, 207, 220]), 5) && pixels_same_color(&image, [(690, 1306).into(), (717, 1326).into()].into_iter(), image::Rgb([56, 30, 114])) {
         return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(DungeonState::IdleChest, &image, old_state.get_position()))).merge(old_state));
+    }
+    if pixel_color_tolerance(&image, (466, 1116).into(), image::Rgb([185, 207, 220]), 5) && pixel_color(&image, (714, 1308).into(), image::Rgb([105, 102, 108])) {
+        return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(DungeonState::IdleChestMagical, &image, old_state.get_position()))).merge(old_state));
     }
     if (image.get_info().coordinates.is_none() &&
         (pixel_either_color(&image, (827, 1306).into(), [FIGHT, image::Rgb([192, 172, 241])].into_iter()) ||
@@ -943,6 +961,7 @@ pub enum Action {
     FindFight(MoveDirection, (Tile, u32)),
     Fight,
     OpenChest,
+    OpenChestMagical,
 
     ReturnToTown(bool, MoveDirection),
     Resurrect,
@@ -1058,6 +1077,9 @@ pub fn determine_action(state:&State, last_action:Action, old_position:Option<Co
                 DungeonState::IdleChest => {
                     Action::OpenChest
                 },
+                DungeonState::IdleChestMagical => {
+                    Action::OpenChestMagical
+                },
                 DungeonState::Fight(_enemy) => {
                     if false && dungeon.has_low_character() || dungeon.has_dead_character() {
                         if let Some(city_tile) = dungeon.get_city_tile() {
@@ -1123,6 +1145,11 @@ pub fn run_action(device:&str, opt:&Opt, state:&mut State, action:&Action) -> Op
         },
         Action::OpenChest => {
             adb_tap(device, opt, 798, 1312);
+        },
+        Action::OpenChestMagical => {
+            adb_tap(device, opt, 738, 1181);
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            adb_tap(device, opt, 738, 1336);
         },
         Action::ReturnToTown(on_city_tile, move_direction) => {
             if *on_city_tile {
