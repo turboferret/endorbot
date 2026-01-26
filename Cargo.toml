@@ -20,3 +20,10 @@ rustdct = "0.7.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 transpose = "0.2.3"
+
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+ravif = { version = "0.13.0", default-features = false, features = ["threading"] }
+
+[target.'cfg(not(target_arch = "x86_64"))'.dependencies]
+ravif = { version = "0.13.0" }

@@ -4,6 +4,8 @@ use astra::{Body, Request, ResponseBuilder};
 use clap::Parser;
 use image::{DynamicImage, GenericImageView, codecs::webp::WebPEncoder};
 use ocrs::OcrEngine;
+use ravif::{Encoder, Img};
+use rgb::FromSlice;
 use rkyv::rancor::Panic;
 
 use crate::ml::{Action, Bitmap, State};
@@ -34,7 +36,7 @@ fn main() {
     let opt = Opt::parse();
 
     if let Some(test) = &opt.test {
-        if opt.local {
+        if true || opt.local {
             fn write_webp_to_stdout(img: &DynamicImage) -> image::ImageResult<()> {
                 let stdout = std::io::stdout();
                 let mut out = stdout.lock();
@@ -55,8 +57,21 @@ fn main() {
                 Ok(())
             }
 
+            fn write_avif_to_stdout(img: &DynamicImage) {
+                let (w, h) = img.dimensions();
+                let img = Img::new(img.as_rgba8().unwrap().as_rgba(), w as usize, h as usize);
+                let data = Encoder::new()
+                .with_quality(100.0)
+                .with_speed(1)
+                .with_bit_depth(ravif::BitDepth::Auto)
+                .encode_rgba(img).expect("Failed to encode AVIF image").avif_file;
+
+                std::io::stderr().lock().write_all(&data).unwrap();
+            }
+
             let image = screencap::screencap(device, &opt).unwrap();
-            write_webp_to_stdout(&image).unwrap();
+            write_avif_to_stdout(&image);
+            //write_webp_to_stdout(&image).unwrap();
             //let mut stdout = std::io::stdout().lock();
             //image.write_to(&mut stdout, image::ImageFormat::WebP).unwrap();
         }
