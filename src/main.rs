@@ -4,12 +4,11 @@ use astra::{Body, Request, ResponseBuilder};
 use clap::Parser;
 use fast_image_resize::{PixelType, ResizeAlg, ResizeOptions};
 use image::{DynamicImage, GenericImageView, RgbaImage, codecs::webp::WebPEncoder};
-use ocrs::OcrEngine;
 use ravif::{Encoder, Img};
 use rgb::FromSlice;
 use rkyv::rancor::Panic;
 
-use crate::ml::{Action, Bitmap, State};
+use crate::{ml::{Action, Bitmap, State}, screencap::screencap};
 
 mod screencap;
 mod ml;
@@ -26,8 +25,6 @@ struct Opt {
     screencap: bool,
     #[clap(long, action, default_value_t = false)]
     debug: bool,
-    #[clap(long, action, default_value_t = false)]
-    no_ocr: bool,
     #[clap(long)]
     test: Option<PathBuf>,
 }
@@ -37,7 +34,7 @@ fn main() {
     let opt = Opt::parse();
 
     if let Some(test) = &opt.test {
-        if true || opt.local {
+        if opt.local {
             fn write_webp_to_stdout(img: &DynamicImage) -> image::ImageResult<()> {
                 let stdout = std::io::stdout();
                 let mut out = stdout.lock();
@@ -87,23 +84,57 @@ fn main() {
         else {
             let image = screencap::load_png_from_file(test.to_path_buf()).unwrap();
             let bitmap = screencap::bitmap_from_image(&image, &opt).unwrap();
-            match ml::get_state(State::default(), &bitmap) {
+            /*match ml::get_state(State::default(), &bitmap) {
                 Ok(state) => {
                     println!("{state:?}");
                 },
                 Err(err) => {
                     println!("{:?}", err);
                 },
-            }
+            }*/
         }
         return;
     }
 
     if opt.screencap {
-        let bitmap = screencap::screencap_bitmap(device, &opt).unwrap();
-        let b = rkyv::to_bytes::<Panic>(&bitmap).unwrap();
-        //println!("{}", b.len());
-        std::io::stdout().write_all(&b).unwrap();
+        if true {
+            let webp = screencap(device, &opt).unwrap();
+
+            fn write_webp_to_stdout(img: &DynamicImage) -> image::ImageResult<()> {
+                let stdout = std::io::stdout();
+                let mut out = stdout.lock();
+
+                let w = img.width() / 2;
+                let h = img.height() / 2;
+                let mut dst = fast_image_resize::images::Image::new(w, h, PixelType::U8x4);
+                let mut resizer = fast_image_resize::Resizer::new();
+                resizer.resize(img, &mut dst, &ResizeOptions::new().resize_alg(ResizeAlg::Nearest)).expect("fast_image_resize failed");
+
+                // WebPEncoder tar Write (ingen Seek)
+                let encoder = WebPEncoder::new_lossless(&mut out);
+
+                let image_buffer = RgbaImage::from_raw(w, h, dst.buffer().to_vec()).expect("Invalid bitmap data");
+
+                let rgba = image_buffer;
+                encoder.encode(
+                    rgba.as_raw(),
+                    w,
+                    h,
+                    image::ExtendedColorType::Rgba8
+                )?;
+
+                out.flush().ok();
+                Ok(())
+            }
+            write_webp_to_stdout(&webp).unwrap();
+
+        }
+        else {
+            let bitmap = screencap::screencap_bitmap(device, &opt).unwrap();
+            let b = rkyv::to_bytes::<Panic>(&bitmap).unwrap();
+            //println!("{}", b.len());
+            std::io::stdout().write_all(&b).unwrap();
+        }
         return;
     }
 
@@ -324,7 +355,7 @@ fn main() {
 
 fn run(opt:&Opt, device:&str, old_state:State, last_action:Action) -> (State, Action) {
     //let img = screencap::screencap(device, &opt).unwrap();
-    let img = screencap::screencap_bitmap(device, &opt).unwrap();
+    let img = screencap::screencap_webp(device, &opt).unwrap();
     //println!("{:?} {:?}", img.get_info(), img.get_has_dead_characters());
     //img.save_with_format("cap.png", image::ImageFormat::Png).unwrap();
     let old_position = old_state.get_position();

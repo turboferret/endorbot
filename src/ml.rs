@@ -1,12 +1,13 @@
 use std::{char::ToLowercase, collections::{HashMap, HashSet}, io::Write, process::{Command, Stdio}};
 
 use image::{DynamicImage, EncodableLayout, GenericImage, GenericImageView, Rgb, Rgba};
-use ocrs::{ImageSource, OcrEngine, OcrEngineParams};
 use rand::{seq::{IndexedRandom, IteratorRandom}, thread_rng};
 use rten::Model;
 use serde::{Deserialize, Serialize};
 
 use crate::Opt;
+
+use BitmapWebp as BitmapImpl;
 
 #[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, PartialEq)]
 pub struct Bitmap {
@@ -50,16 +51,248 @@ impl Bitmap {
     }
 }
 
-pub fn create_ocr_engine() -> OcrEngine {
-    let recognition_model = Model::load_file("ocr/text-recognition.rten").expect("load_file");
-    let detection_model = Model::load_file("ocr/text-detection.rten").expect("load_file");
-
-    OcrEngine::new(OcrEngineParams {
-        detection_model: Some(detection_model),
-        recognition_model: Some(recognition_model),
-        ..Default::default()
-    }).expect("OcrEngine::new")
+enum TextChar {
+    Digit(u32),
+    Comma,
+    Unknown,
 }
+
+fn get_pixel(image:&BitmapImpl, bx:u32, by:u32, x:u32, y:u32, opt:&Opt) -> [u8; 3] {
+    let clr = image.get_pixel(x as u16, y as u16);
+    if opt.debug {
+        println!("\t\t{}x{} = {clr:?}", x as i32 - bx as i32, y as i32 - by as i32);
+    }
+    clr
+}
+
+fn find_text_char(x:u32, y:u32, image:&BitmapImpl, opt:&Opt) -> TextChar {
+    let clr = [230 as u8, 224, 233];
+    let gray = [29 as u8, 27, 32];
+    /*if x == 292 {
+        println!("{}x{} {}x{} {}x{} {}x{} {}x{} {}x{}", x,y+1, x-5, y+3, x-2, y+6, x+2,y+6,x+3,y+19,x-6,y+21);
+        println!("{:?} {:?} {:?} {:?} {:?} {:?}", image.get_pixel(x, y + 1), image.get_pixel(x - 5, y + 3), image.get_pixel(x - 2, y + 6), image.get_pixel(x + 2, y + 6), image.get_pixel(x + 3, y + 19), image.get_pixel(x - 6, y + 21));
+    }*/
+    if opt.debug {
+        println!("\tCheck UNKNOWN");
+    }
+    if get_pixel(image, x, y, x, y - 2, opt) == clr && get_pixel(image, x, y, x, y + 26, opt) == clr {  //  )
+        if opt.debug {
+            println!("\tFound UNKNOWN");
+        }
+        return TextChar::Unknown;
+    }
+    if opt.debug {
+        println!("\tCheck COMMA");
+    }
+    if get_pixel(image, x, y, x, y + 25, opt) == clr || get_pixel(image, x, y, x, y + 26, opt) == clr {   //  ,
+        return TextChar::Comma;
+    }
+    if opt.debug {
+        println!("\tCheck 2");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x - 5, y + 3, opt) == clr
+        && get_pixel(image, x, y, x - 2, y + 6, opt) == gray
+        && get_pixel(image, x, y, x + 4, y + 6, opt) == clr
+        && get_pixel(image, x, y, x + 3, y + 19, opt) == clr
+        && get_pixel(image, x, y, x - 6, y + 3, opt) == clr
+            && get_pixel(image, x, y, x - 6, y + 21, opt) == clr {
+        return TextChar::Digit(2);
+    }
+    if opt.debug {
+        println!("\tCheck 1");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x - 5, y + 3, opt) == clr
+        && get_pixel(image, x, y, x - 5, y + 10, opt) != clr
+            && get_pixel(image, x, y, x - 6, y + 21, opt) == clr {
+        return TextChar::Digit(1);
+    }
+    if opt.debug {
+        println!("\tCheck 0");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x - 1, y + 10, opt) == clr
+        && get_pixel(image, x, y, x - 6, y + 10, opt) == clr
+        && get_pixel(image, x, y, x + 5, y + 5, opt) == clr
+        && get_pixel(image, x,y, x - 5, y + 4, opt) == clr
+        && get_pixel(image, x, y, x - 6, y, opt) == gray
+        && get_pixel(image, x, y, x - 6, y + 14, opt) == clr
+            && get_pixel(image, x, y, x - 6, y + 9, opt) == clr {
+        return TextChar::Digit(0);
+    }
+    if opt.debug {
+        println!("\tCheck 9");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x - 7, y, opt) == gray
+        && get_pixel(image, x, y, x, y + 14, opt) == gray
+        && get_pixel(image, x, y, x - 7, y + 14, opt) == gray
+            && get_pixel(image, x, y, x - 6, y + 9, opt) == clr {
+        return TextChar::Digit(9);
+    }
+    if opt.debug {
+        println!("\tCheck 6");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x + 4, y + 6, opt) != clr
+        && (get_pixel(image, x, y, x - 5, y + 14, opt) == clr || get_pixel(image, x, y, x - 6, y + 14, opt) == clr)
+        && get_pixel(image, x, y, x - 7, y, opt) == gray
+        && get_pixel(image, x, y, x, y + 14, opt) == gray
+            && (get_pixel(image, x, y, x - 6, y + 9, opt) == clr || get_pixel(image, x, y, x - 4, y + 9, opt) == clr) {
+        return TextChar::Digit(6);
+    }
+    if opt.debug {
+        println!("\tCheck 8");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && (get_pixel(image, x, y, x - 3, y + 5, opt) == clr || get_pixel(image, x, y, x - 5, y + 5, opt) == clr)
+            && (get_pixel(image, x, y, x + 6, y + 5, opt) == clr || get_pixel(image, x, y, x + 4, y + 5, opt) == clr)
+            && (get_pixel(image, x, y, x + 7, y + 16, opt) == clr || get_pixel(image, x, y, x + 5, y + 16, opt) == clr)
+            && get_pixel(image, x, y, x - 4, y + 19, opt) == clr {
+        return TextChar::Digit(8);
+    }
+    if opt.debug {
+        println!("\tCheck 5");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x, y + 5, opt) != clr
+        && (get_pixel(image, x, y, x - 5, y + 6, opt) == clr || get_pixel(image, x, y, x - 3, y + 6, opt) == clr)
+        && get_pixel(image, x, y, x + 1, y + 6, opt) == gray
+        && get_pixel(image, x, y, x + 1, y + 14, opt) != clr
+            && get_pixel(image, x, y, x - 4, y + 2, opt) == clr
+            && get_pixel(image, x, y, x + 4, y + 2, opt) == clr {
+        return TextChar::Digit(5);
+    }
+    if opt.debug {
+        println!("\tCheck 4");
+    }
+    if get_pixel(image, x, y, x + 2, y + 1, opt) == clr
+        && (get_pixel(image, x, y, x - 2, y + 2, opt) != clr || get_pixel(image, x, y, x - 4, y + 2, opt) != clr)
+        && get_pixel(image, x, y, x - 1, y + 11, opt) != clr {
+        return TextChar::Digit(4);
+    }
+    if opt.debug {
+        println!("\tCheck 7");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x - 2, y + 6, opt) != clr
+        && get_pixel(image, x, y, x + 6, y + 16, opt) != clr
+            && get_pixel(image, x, y, x - 5, y + 2, opt) == clr
+            && get_pixel(image, x, y, x + 5, y + 2, opt) == clr {
+        return TextChar::Digit(7);
+    }
+    if opt.debug {
+        println!("\tCheck 3");
+    }
+    if get_pixel(image, x, y, x, y + 1, opt) == clr
+        && get_pixel(image, x, y, x - 5, y + 2, opt) == clr
+            && get_pixel(image, x, y, x - 1, y + 10, opt) == clr
+            && get_pixel(image, x, y, x - 4, y + 18, opt) == clr {
+        return TextChar::Digit(3);
+    }
+    //println!("{x}x{y}");
+    TextChar::Unknown
+}
+
+fn get_info(image:&BitmapImpl, opt:&Opt) -> DungeonInfo {
+    let clr = [230, 224, 233];
+    for x in 220..378 {
+        if image.get_pixel(x, 1051) == clr {
+            if opt.debug {
+                println!("Position start at {x}x1051");
+            }
+
+            let mut x = x as u32 + 20;
+            let y = 1052;
+
+            let mut numbers = Vec::new();
+            let mut current_number = None;
+            loop {
+                match find_text_char(x, y, image, opt) {
+                    TextChar::Digit(v) => {
+                        if opt.debug {
+                            println!("{x}x{y} = {v}");
+                        }
+                        current_number = if let Some(n) = current_number {
+                            Some(n * 10 + v)
+                        }
+                        else {
+                            Some(v)
+                        };
+                    },
+                    TextChar::Comma => {
+                        if opt.debug {
+                            println!("{x}x{y} = ,");
+                        }
+                        x += 1;
+                        if let Some(n) = current_number {
+                            numbers.push(n);
+                            current_number = None;
+                        }
+                    },
+                    TextChar::Unknown => {
+                        if opt.debug {
+                            println!("{x}x{y} = UNKNOWN");
+                        }
+                        if let Some(n) = current_number {
+                            numbers.push(n);
+                            current_number = None;
+                        }
+                        break;
+                    }
+                }
+                x += 20;
+            }
+            if opt.debug {
+                println!("numbers = {numbers:?}");
+            }
+
+            return DungeonInfo {
+                floor: "D1".to_owned(),
+                coordinates: if numbers.len() >= 2 {
+                    Some(Coords{x: numbers[0], y: numbers[1]})
+                } else {None},
+            };
+        }
+    }
+    DungeonInfo {
+        floor: "".to_owned(),
+        coordinates: None,
+    }
+}
+pub struct BitmapWebp {
+    image: DynamicImage,
+    divisor: u32,
+    pub has_dead_characters: bool,
+    pub info: DungeonInfo,
+}
+impl BitmapWebp {
+    pub fn from_image(image:DynamicImage, divisor:u32, opt:&Opt) -> Self {
+        let mut bmp = Self {
+            image,
+            divisor,
+            has_dead_characters: false,
+            info: DungeonInfo {
+                floor: "".to_owned(),
+                coordinates: None,
+            }
+        };
+        bmp.has_dead_characters = get_characters(&bmp).iter().find(|char|char.is_dead()).is_some();
+        bmp.info = get_info(&bmp, opt);
+        bmp
+    }
+    pub fn get_pixel(&self, x:u16, y:u16) -> [u8; 3] {
+        self.image.get_pixel((x as u32) / self.divisor, (y as u32) / self.divisor).0[0..3].try_into().unwrap()
+    }
+    pub fn get_has_dead_characters(&self) -> bool {
+        self.has_dead_characters
+    }
+    pub fn get_info(&self) -> &DungeonInfo {
+        &self.info
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct Coords {
     pub x: u32,
@@ -212,38 +445,6 @@ pub struct DungeonInfo {
     pub coordinates: Option<Coords>,
 }
 
-pub fn get_info(ocr:&OcrEngine, image:&DynamicImage, old_position:Option<Coords>) -> DungeonInfo {
-    let img = image.clone().sub_image(211, 1039, 365, 51).to_image();
-    let img_source = ImageSource::from_bytes(img.as_bytes(), (365, 51)).expect("from_bytes");
-    let ocr_input = ocr.prepare_input(img_source).expect("prepare_input");
-    
-    let text = ocr.get_text(&ocr_input).expect("get_text");
-    let coords = if let Some(p) = text.find("(") {
-        let text = &text[p+1..];
-        if let Some(p) = text.find(",") {
-            let x = text[..p].parse::<u32>().expect("parse");
-            let y = text[p+1..text.find(")").expect("find )")].parse::<u32>().expect("parse");
-            Some(Coords{x, y})
-        }
-        else {
-            old_position
-        }
-    }
-    else {
-        old_position
-    };
-
-    DungeonInfo {
-        floor: if let Some(p) = text.find(" ") {
-            text[0..p].to_string()
-        }
-        else {
-            "".to_owned()
-        },
-        coordinates: coords,
-    }
-}
-
 const TILE_SIZE:(u32, u32) = (60, 60);
 const TILE_START:(u32, u32) = (536, 536);
 const TILE_COUNT:(u32, u32) = (7, 7);
@@ -284,7 +485,7 @@ impl Tile {
     }
 }
 
-fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
+fn get_tiles(info:&DungeonInfo, image:&BitmapImpl) -> Vec<Tile> {
     let (x_base, y_base) = if let Some(coords) = info.coordinates {
         (coords.x as i32 - (TILE_COUNT.0 + 1 ) as i32 / 2, coords.y as i32 - (TILE_COUNT.1 + 1 ) as i32 / 2 + 1)
     }
@@ -323,7 +524,7 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
 
            // println!("{x}x{y} {:?}", image.get_pixel(x, y));
 
-            fn is_wall(image:&Bitmap, x:u32, y:u32) -> bool {
+            fn is_wall(image:&BitmapImpl, x:u32, y:u32) -> bool {
                 let color = image.get_pixel(x as u16, y as u16);
                 let color2 = image.get_pixel(x as u16, y as u16 + 1);
                 color.iter().all(|v|*v >= 125) || color2.iter().all(|v|*v >= 125)
@@ -331,12 +532,12 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 || color2.iter().all(|v|*v >= 40 && *v <= 64)
             }
 
-            fn is_city(image:&Bitmap, x:u32, y:u32) -> bool {
+            fn is_city(image:&BitmapImpl, x:u32, y:u32) -> bool {
                 let clr = [244u8, 67, 54];
                 let clr_faded = [165u8, 118, 66];
                 let color = image.get_pixel(x as u16, y as u16);
                 let color2 = image.get_pixel(x as u16 + 4, y as u16 + 8);
-                if (*color == clr || *color == clr_faded)  && *color2 != clr && *color2 != clr_faded  {
+                if (color == clr || color == clr_faded)  && color2 != clr && color2 != clr_faded  {
                     //println!("{x}x{y}");
                     true
                 }
@@ -344,7 +545,7 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                     false
                 }
             }
-            fn is_go_down(image:&Bitmap, x:u32, y:u32) -> bool {
+            fn is_go_down(image:&BitmapImpl, x:u32, y:u32) -> bool {
                 let clr = [244u8, 67, 54];
                 let clr_faded = [165u8, 118, 66];
                 let color = image.get_pixel(x as u16, y as u16);
@@ -352,7 +553,7 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 let color3 = image.get_pixel(x as u16 + 5, y as u16);
                 let color4 = image.get_pixel(x as u16 - 5, y as u16);
                 //println!("{x}x{y} {color:?} {color2:?} {color3:?}");
-                if (*color == clr || *color == clr_faded)  && (*color2 == clr || *color2 == clr_faded) && *color3 != clr && *color3 == clr_faded && *color4 == clr && *color4 == clr_faded  {
+                if (color == clr || color == clr_faded)  && (color2 == clr || color2 == clr_faded) && color3 != clr && color3 == clr_faded && color4 == clr && color4 == clr_faded  {
                     //println!("{x}x{y}");
                     true
                 }
@@ -361,7 +562,7 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 }
             }
 
-            fn is_go_up(image:&Bitmap, x:u32, y:u32) -> bool {
+            fn is_go_up(image:&BitmapImpl, x:u32, y:u32) -> bool {
                 let clr = [244u8, 67, 54];
                 let clr_faded = [165u8, 118, 66];
                 let color = image.get_pixel(x as u16, y as u16);
@@ -369,7 +570,7 @@ fn get_tiles(info:&DungeonInfo, image:&Bitmap) -> Vec<Tile> {
                 let color3 = image.get_pixel(x as u16 + 5, y as u16);
                 let color4 = image.get_pixel(x as u16 - 5, y as u16);
                 //println!("{x}x{y} {color:?} {color2:?} {color3:?}");
-                if (*color == clr || *color == clr_faded)  && *color2 != clr && *color2 != clr_faded && (*color3 == clr || *color3 == clr_faded) && (*color4 == clr || *color4 == clr_faded)  {
+                if (color == clr || color == clr_faded)  && color2 != clr && color2 != clr_faded && (color3 == clr || color3 == clr_faded) && (color4 == clr || color4 == clr_faded)  {
                     //println!("{x}x{y}");
                     true
                 }
@@ -464,7 +665,7 @@ impl Dungeon {
         self.characters.iter().any(|v|v.health == Health::Dead)
     }
 
-    pub fn new(state:DungeonState, image:&Bitmap, old_position:Option<Coords>) -> Self {
+    pub fn new(state:DungeonState, image:&BitmapImpl, old_position:Option<Coords>) -> Self {
         let mut state = Self {
             state,
             characters: get_characters(image),
@@ -800,7 +1001,7 @@ const IDLE_1:image::Rgb<u8> = image::Rgb([202, 196, 208]);
 
 const TILE_UNEXPLORED:image::Rgb<u8> = image::Rgb([29, 27, 32]);
 
-pub fn get_characters(image:&Bitmap) -> [Character; 4] {
+pub fn get_characters(image:&BitmapImpl) -> [Character; 4] {
     std::array::from_fn(|i|{
         let y = 560 + i as u32 * 120;
         let health = if pixel_color(image, (514, y).into(), HEALTH_GREEN) {
@@ -822,17 +1023,7 @@ pub fn get_characters(image:&Bitmap) -> [Character; 4] {
     })
 }
 
-pub fn has_dead_characters(ocr:&OcrEngine, image:&DynamicImage) -> bool {
-    let img = image.clone().sub_image(143, 520, 375, 394).to_image();
-    let img_source = ImageSource::from_bytes(img.as_bytes(), (375, 394)).expect("from_bytes");
-    //let img_source = ImageSource::from_bytes(image.as_bytes(), image.dimensions()).expect("from_bytes");
-    let ocr_input = ocr.prepare_input(img_source).expect("prepare_input");
-    
-    let text = ocr.get_text(&ocr_input).expect("get_text");
-    text.contains("dead")
-}
-
-fn get_enemy(image:&Bitmap) -> Enemy {
+fn get_enemy(image:&BitmapImpl) -> Enemy {
     let x = if pixel_either_color(image, (90, 1472).into(), [HEALTH_RED, HEALTH_GREY].into_iter()) {
         89
     }
@@ -864,28 +1055,28 @@ fn write_coord_to_file(x:u32, y: u32) {
     //write!(f, "{x},{y}\n").unwrap();    
 }
 
-fn pixels_color(image: &Bitmap, pixels:impl Iterator<Item = Pixel>) -> bool {
+fn pixels_color(image: &BitmapImpl, pixels:impl Iterator<Item = Pixel>) -> bool {
     pixels.into_iter().all(|pixel|{
         write_coord_to_file(pixel.x, pixel.y);
         //let c = image.get_pixel(pixel.x, pixel.y);
         //println!("{}x{} {:?} {:?}", pixel.x, pixel.y, pixel.color, c);
-        *image.get_pixel(pixel.x as u16, pixel.y as u16) == pixel.color.0
+        image.get_pixel(pixel.x as u16, pixel.y as u16) == pixel.color.0
     })
 }
-fn pixels_same_color(image: &Bitmap, pixels:impl Iterator<Item = Coords>, color: Rgb<u8>) -> bool {
+fn pixels_same_color(image: &BitmapImpl, pixels:impl Iterator<Item = Coords>, color: Rgb<u8>) -> bool {
     pixels.into_iter().all(|coords|{
         write_coord_to_file(coords.x, coords.y);
         //let c = image.get_pixel(coords.x as u16, coords.y as u16);
         //println!("{}x{} {:?} {:?}", coords.x, coords.y, color, c);
-        *image.get_pixel(coords.x as u16, coords.y as u16) == color.0
+        image.get_pixel(coords.x as u16, coords.y as u16) == color.0
     })
 }
-fn pixel_color(image: &Bitmap, coords:Coords, color: Rgb<u8>) -> bool {
+fn pixel_color(image: &BitmapImpl, coords:Coords, color: Rgb<u8>) -> bool {
     write_coord_to_file(coords.x, coords.y);
     //println!("{}x{} {:?} {:?}", coords.x, coords.y, color, image.get_pixel(coords.x, coords.y));
-    *image.get_pixel(coords.x as u16, coords.y as u16) == color.0
+    image.get_pixel(coords.x as u16, coords.y as u16) == color.0
 }
-fn pixel_color_tolerance(image: &Bitmap, coords:Coords, color: Rgb<u8>, tolerance:u8) -> bool {
+fn pixel_color_tolerance(image: &BitmapImpl, coords:Coords, color: Rgb<u8>, tolerance:u8) -> bool {
     write_coord_to_file(coords.x, coords.y);
     fn diff(a:u8, b:u8) -> u8 {
         if a > b {
@@ -896,16 +1087,16 @@ fn pixel_color_tolerance(image: &Bitmap, coords:Coords, color: Rgb<u8>, toleranc
         }
     }
     //println!("{}x{} {:?} {:?}", coords.x, coords.y, color, image.get_pixel(coords.x, coords.y));
-    let clr = *image.get_pixel(coords.x as u16, coords.y as u16);
+    let clr = image.get_pixel(coords.x as u16, coords.y as u16);
     diff(clr[0], color.0[0]) <= tolerance && diff(clr[1], color.0[1]) <= tolerance && diff(clr[2], color.0[2]) <= tolerance
 }
-fn pixel_either_color(image: &Bitmap, coords:Coords, colors: impl Iterator<Item = Rgb<u8>>) -> bool {
+fn pixel_either_color(image: &BitmapImpl, coords:Coords, colors: impl Iterator<Item = Rgb<u8>>) -> bool {
     write_coord_to_file(coords.x, coords.y);
     let color = image.get_pixel(coords.x as u16, coords.y as u16);
-    colors.into_iter().any(|v|v.0 == *color)
+    colors.into_iter().any(|v|v.0 == color)
 }
 
-pub fn get_state(old_state:State, image:&Bitmap) -> Result<State, StateError> {
+pub fn get_state(old_state:State, image:&BitmapImpl) -> Result<State, StateError> {
     if pixels_same_color(&image, [(918, 138).into(), (949, 138).into(), (919, 168).into(), (949, 168).into()].into_iter(), image::Rgb([202, 196, 208])) {
         return Ok(Into::<State>::into(StateType::Ad).merge(old_state));
     }
@@ -933,7 +1124,7 @@ pub fn get_state(old_state:State, image:&Bitmap) -> Result<State, StateError> {
         return Ok(Into::<State>::into((StateType::Dungeon, Dungeon::new(DungeonState::Idle(on_city_tile), &image, old_state.get_position()))).merge(old_state));
     }
     if pixels_color(&image, [(752, 1926, CITY_1).into(), (75, 1512, CITY_2).into()].into_iter()) {
-        return Ok(Into::<State>::into(StateType::City(image.has_dead_characters)).merge(old_state));
+        return Ok(Into::<State>::into(StateType::City(image.get_has_dead_characters())).merge(old_state));
     }
     if pixels_same_color(&image, [(462, 1254).into(), (536, 1262).into(), (615, 1270).into()].into_iter(), WHITE) {
         return Ok(Into::<State>::into(StateType::Main).merge(old_state));

@@ -417,7 +417,6 @@ dependencies = [
  "clap",
  "fast_image_resize",
  "image",
- "ocrs",
  "parking_lot",
  "pathfinding",
  "rand",
@@ -1018,21 +1017,6 @@ checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
 dependencies = [
  "hermit-abi",
  "libc",
-]
-
-[[package]]
-name = "ocrs"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c441a0f02b3eb3e67b7331cd76f5c1ec7dc3b0483fc87e8dfe564cc5a0096d48"
-dependencies = [
- "anyhow",
- "rayon",
- "rten",
- "rten-imageproc",
- "rten-tensor",
- "thiserror",
- "wasm-bindgen",
 ]
 
 [[package]]
