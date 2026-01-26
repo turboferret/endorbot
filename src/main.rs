@@ -2,7 +2,8 @@ use std::{collections::{HashMap, HashSet}, convert::Infallible, io::Write, path:
 
 use astra::{Body, Request, ResponseBuilder};
 use clap::Parser;
-use image::{DynamicImage, GenericImageView, codecs::webp::WebPEncoder};
+use fast_image_resize::{PixelType, ResizeAlg, ResizeOptions};
+use image::{DynamicImage, GenericImageView, RgbaImage, codecs::webp::WebPEncoder};
 use ocrs::OcrEngine;
 use ravif::{Encoder, Img};
 use rgb::FromSlice;
@@ -41,16 +42,23 @@ fn main() {
                 let stdout = std::io::stdout();
                 let mut out = stdout.lock();
 
+                let w = img.width() / 2;
+                let h = img.height() / 2;
+                let mut dst = fast_image_resize::images::Image::new(w, h, PixelType::U8x4);
+                let mut resizer = fast_image_resize::Resizer::new();
+                resizer.resize(img, &mut dst, &ResizeOptions::new().resize_alg(ResizeAlg::Nearest)).expect("fast_image_resize failed");
+
                 // WebPEncoder tar Write (ingen Seek)
                 let encoder = WebPEncoder::new_lossless(&mut out);
 
-                // WebPEncoder vill ha rå pixelbuffer + dimensioner + ColorType
-                let rgba = img.to_rgb8();
+                let image_buffer = RgbaImage::from_raw(w, h, dst.buffer().to_vec()).expect("Invalid bitmap data");
+
+                let rgba = image_buffer;
                 encoder.encode(
                     rgba.as_raw(),
-                    rgba.width(),
-                    rgba.height(),
-                    image::ExtendedColorType::Rgb8
+                    w,
+                    h,
+                    image::ExtendedColorType::Rgba8
                 )?;
 
                 out.flush().ok();
@@ -60,9 +68,10 @@ fn main() {
             fn write_avif_to_stdout(img: &DynamicImage) {
                 let (w, h) = img.dimensions();
                 let img = Img::new(img.as_rgba8().unwrap().as_rgba(), w as usize, h as usize);
+
                 let data = Encoder::new()
-                .with_quality(100.0)
-                .with_speed(1)
+                .with_quality(50.0)
+                .with_speed(10)
                 .with_bit_depth(ravif::BitDepth::Auto)
                 .encode_rgba(img).expect("Failed to encode AVIF image").avif_file;
 
@@ -70,8 +79,8 @@ fn main() {
             }
 
             let image = screencap::screencap(device, &opt).unwrap();
-            write_avif_to_stdout(&image);
-            //write_webp_to_stdout(&image).unwrap();
+            //write_avif_to_stdout(&image);
+            write_webp_to_stdout(&image).unwrap();
             //let mut stdout = std::io::stdout().lock();
             //image.write_to(&mut stdout, image::ImageFormat::WebP).unwrap();
         }
