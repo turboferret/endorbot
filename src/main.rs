@@ -2,7 +2,7 @@ use std::{collections::{HashMap, HashSet}, convert::Infallible, io::Write, path:
 
 use astra::{Body, Request, ResponseBuilder};
 use clap::Parser;
-use image::GenericImageView;
+use image::{DynamicImage, GenericImageView, codecs::webp::WebPEncoder};
 use ocrs::OcrEngine;
 use rkyv::rancor::Panic;
 
@@ -30,23 +30,50 @@ struct Opt {
 }
 //  1080x2408
 fn main() {
+    let device = "RF8W101PHWF";
     let opt = Opt::parse();
 
     if let Some(test) = &opt.test {
-        let image = screencap::load_png_from_file(test.to_path_buf()).unwrap();
-        let bitmap = screencap::bitmap_from_image(&image, &opt).unwrap();
-        match ml::get_state(State::default(), &bitmap) {
-            Ok(state) => {
-                println!("{state:?}");
-            },
-            Err(err) => {
-                println!("{:?}", err);
-            },
+        if opt.local {
+            fn write_webp_to_stdout(img: &DynamicImage) -> image::ImageResult<()> {
+                let stdout = std::io::stdout();
+                let mut out = stdout.lock();
+
+                // WebPEncoder tar Write (ingen Seek)
+                let encoder = WebPEncoder::new_lossless(&mut out);
+
+                // WebPEncoder vill ha rå pixelbuffer + dimensioner + ColorType
+                let rgba = img.to_rgb8();
+                encoder.encode(
+                    rgba.as_raw(),
+                    rgba.width(),
+                    rgba.height(),
+                    image::ExtendedColorType::Rgb8
+                )?;
+
+                out.flush().ok();
+                Ok(())
+            }
+
+            let image = screencap::screencap(device, &opt).unwrap();
+            write_webp_to_stdout(&image).unwrap();
+            //let mut stdout = std::io::stdout().lock();
+            //image.write_to(&mut stdout, image::ImageFormat::WebP).unwrap();
+        }
+        else {
+            let image = screencap::load_png_from_file(test.to_path_buf()).unwrap();
+            let bitmap = screencap::bitmap_from_image(&image, &opt).unwrap();
+            match ml::get_state(State::default(), &bitmap) {
+                Ok(state) => {
+                    println!("{state:?}");
+                },
+                Err(err) => {
+                    println!("{:?}", err);
+                },
+            }
         }
         return;
     }
-
-    let device = "RF8W101PHWF";
 
     if opt.screencap {
         let bitmap = screencap::screencap_bitmap(device, &opt).unwrap();
